@@ -123,7 +123,12 @@ export function DropZone({
         if (disposed) u()
         else unlisten = u
       })
-      .catch((err) => console.warn('[DropZone] 拖放监听不可用', err))
+      .catch((err) => {
+        // 只 console.warn 用户是看不见的：安装态若该监听注册失败，
+        // 表现为「拖进去没反应」。现显式提示，并建议改用点击选择。
+        console.warn('[DropZone] 拖放监听不可用', err)
+        setProbeError('拖放功能不可用（无法注册拖放监听），请改用下方的点击选择。')
+      })
 
     return () => {
       disposed = true
@@ -149,8 +154,19 @@ export function DropZone({
 
   const onPick = async () => {
     if (disabled || busy) return
-    const picked = await ipc.pickAudioFile(multiple)
-    if (picked.length) await accept(picked)
+    // 此前这里没有 try/catch：`pickAudioFile` 内部的动态 import 或
+    // dialog 插件调用一旦失败，会变成**未处理的 Promise rejection**，
+    // 界面上什么都不发生——用户看到的就是「点了选择没反应」，无从判断。
+    // 现复用 probeError 槽把原因显出来。
+    try {
+      setProbeError(null)
+      const picked = await ipc.pickAudioFile(multiple)
+      if (picked.length) await accept(picked)
+    } catch (err) {
+      setProbeError(
+        `打开文件选择器失败：${typeof err === 'string' ? err : String(err)}`,
+      )
+    }
   }
 
   const filled = files.length > 0

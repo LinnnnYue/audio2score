@@ -33,7 +33,10 @@ use parking_lot::Mutex;
 
 /// 前端发来的扒谱请求。字段用 camelCase，与 TS 对齐。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+// 边界约定：与前端通话用 camelCase，与 Python 引擎通话用 snake_case。
+// Rust 是这一层边界，必须双向都声明清楚——只写 rename_all 会让
+// to_value() 产出 camelCase，而 bridge.py 只认 snake_case，参数被静默丢弃。
+#[serde(rename_all(serialize = "snake_case", deserialize = "camelCase"))]
 pub struct TranscribeRequest {
     pub mode: String,
     pub input_path: String,
@@ -91,11 +94,22 @@ pub struct EngineState {
     tasks: Mutex<HashMap<String, Arc<Mutex<Option<Sidecar>>>>>,
     /// 引擎根目录（engine/ 的绝对路径）
     engine_dir: Mutex<Option<PathBuf>>,
+    /// 幂等命令的结果缓存。
+    /// 背景：两个功能页常驻挂载、各自在挂载时拉 modes + capabilities，
+    /// 冷启动瞬间会并发 4 个 Python 子进程（每次冷启 1~2 秒）。
+    /// 装上杀软扫描的机器上极易个别超时 → 表现为「引擎未返回结果」。
+    /// modes/capabilities 在同一会话内结果恒定，缓存即可把 4 次压成 1 次。
+    cache: Mutex<HashMap<String, Value>>,
+    /// 一次性命令的串行门：确保同一时刻只有一个 Python 冷启动在跑，
+    /// 避免并发抢占 CPU/IO 导致集体变慢。
+    gate: Mutex<()>,
 }
 
 // ─────────────────────────────────────────────────────────────
 // 定位引擎
 // ─────────────────────────────────────────────────────────────
+
+
 
 /// 定位 engine 目录。
 ///
@@ -112,23 +126,38 @@ fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(dir);
     }
 
-    let candidates: Vec<PathBuf> = vec![
-        // 开发态
+    // ⚠️ 顺序即优先级。**必须把「可执行文件同级」放第一位**——
+    // 安装版应优先用自己安装目录里的引擎资源，而不是编译机的源码树。
+    // 曾把 CARGO_MANIFEST_DIR 放第一，等于让安装版去用开发者的项目目录，
+    // 一旦那个路径不存在（换机器/项目被移动）就会解析失败。
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // 1) 可执行文件同级 engine/（安装态正解：<安装目录>/engine）
+    if let Some(d) = &exe_dir {
+        candidates.push(d.join("engine"));
+    }
+    // 2) Tauri 资源目录 engine/（部分打包目标会把 resources 放这里）
+    if let Ok(rd) = app.path().resource_dir() {
+        candidates.push(rd.join("engine"));
+    }
+    // 3) 开发态兜底：项目源码树。**仅当上面都不命中时才用**，
+    //    且只在 debug 构建下启用，避免安装版误用开发机路径。
+    #[cfg(debug_assertions)]
+    candidates.push(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .map(|p| p.join("engine"))
             .unwrap_or_default(),
-        // 打包态（Tauri 资源目录）
-        app.path()
-            .resource_dir()
-            .map(|p| p.join("engine"))
-            .unwrap_or_default(),
-        // 可执行文件同级
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.join("engine")))
-            .unwrap_or_default(),
-    ];
+    );
+
+    
+    for c in &candidates {
+        
+    }
 
     for c in candidates {
         if c.join("bridge.py").is_file() {
@@ -136,9 +165,16 @@ fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
             if let Some(state) = app.try_state::<EngineState>() {
                 *state.engine_dir.lock() = Some(c.clone());
             }
+            
             return Ok(c);
         }
     }
+
+    // 4) 最后一道：源码树与 venv 分离的安装态——
+    //    源码在安装目录，venv 在 %LOCALAPPDATA%apu\engine。
+    //    此时 engine_dir 指向安装目录（有源码），解释器另找。
+    //    若连源码都没有，说明安装包不完整。
+    
 
     Err(
         "找不到引擎目录（engine/bridge.py）。\n请确认应用完整安装，或联系开发者。".to_string(),
@@ -171,6 +207,7 @@ fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// 3. 系统 python（最后兜底，几乎必然缺依赖——但给出明确错误比静默失败好）
 fn resolve_engine_python(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let dir = engine_dir(app)?;
+    
 
     // 1) 开发态：源码目录自带 venv
     let dev = dir.join(".venv");
@@ -190,12 +227,15 @@ fn resolve_engine_python(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> 
     }
 
     // 2) 引导安装的默认落点
+    
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         let installed = PathBuf::from(local).join("bapu").join("engine");
         #[cfg(windows)]
         {
             let p = installed.join(".venv").join("Scripts").join("python.exe");
+            
             if p.is_file() {
+                
                 return Ok((dir.clone(), p));
             }
         }
@@ -220,9 +260,43 @@ fn resolve_engine_python(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> 
     ))
 }
 
+/// 结果在同一会话内恒定、可安全缓存的命令。
+/// `probe` 不进缓存（文件可能被替换）；`modes`/`capabilities` 与文件无关。
+const CACHEABLE_CMDS: &[&str] = &["modes", "capabilities"];
+
 fn run_once(app: &AppHandle, cmd: &str, payload: Value) -> Result<Value, String> {
+    use tauri::Manager;
+    let st = app.state::<EngineState>();
+    let cacheable = CACHEABLE_CMDS.contains(&cmd);
+
+    // 快路径：命中缓存
+    if cacheable {
+        if let Some(v) = st.cache.lock().get(cmd) {
+            
+            return Ok(v.clone());
+        }
+    }
+
+    // 串行门：同一时刻只允许一个 Python 冷启动，避免并发抢占导致集体变慢/超时。
+    // guard 必须活到函数结束，覆盖整段子进程生命周期。
+    let _gate = st.gate.lock();
+
+    // 双重检查：等锁期间可能已有别的线程填好了缓存
+    if cacheable {
+        if let Some(v) = st.cache.lock().get(cmd) {
+            
+            return Ok(v.clone());
+        }
+    }
+
     let (dir, py) = resolve_engine_python(app)?;
-    run_once_with(app, &dir, &py, cmd, payload)
+    let out = run_once_with(app, &dir, &py, cmd, payload)?;
+
+    if cacheable {
+        st.cache.lock().insert(cmd.to_string(), out.clone());
+        
+    }
+    Ok(out)
 }
 
 fn run_once_with(
@@ -245,6 +319,26 @@ fn run_once_with(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("无法启动引擎进程：{}\n请确认已安装 Python 依赖。", e))?;
+
+    // ── 接管 stderr ──
+    // 必须并发读走。两个理由：
+    // 1. 子进程往 stderr 大量输出时会写满管道缓冲区（64KB）而阻塞，
+    //    表现为「stdout 也读不到东西」的假死。
+    // 2. 万一 Python 侧 import 失败崩溃，stderr 里的 traceback 是**唯一线索**。
+    //    此前这里只 piped 不读，出错时只能报「引擎未返回结果」，无从排查。
+    let stderr_buf: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    if let Some(se) = child.stderr.take() {
+        let buf = stderr_buf.clone();
+        std::thread::spawn(move || {
+            let r = BufReader::new(se);
+            for line in r.lines().map_while(Result::ok) {
+                let mut b = buf.lock();
+                if b.len() < 200 {
+                    b.push(line);
+                }
+            }
+        });
+    }
 
     // ── 发请求，然后**立刻关闭 stdin** ──
     //
@@ -273,17 +367,20 @@ fn run_once_with(
         }
         // 关键：显式关闭，否则 bridge 进程不会退出
         drop(child.stdin.take());
+        
     }
 
     let stdout = child.stdout.take().ok_or("引擎 stdout 不可用")?;
     let reader = BufReader::new(stdout);
 
     let mut result: Option<Result<Value, (String, String)>> = None;
+    let mut lines_seen: usize = 0;
     for line in reader.lines() {
         let line = match line {
             Ok(l) => l,
             Err(_) => break,
         };
+        lines_seen += 1;
         let trimmed = line.trim();
         if trimmed.is_empty() || !trimmed.starts_with('{') {
             continue;
@@ -313,7 +410,8 @@ fn run_once_with(
     }
 
     // 关闭 stdin 后 bridge 会自行退出；这里回收子进程
-    let _ = child.wait();
+    let code = child.wait().map(|s| s.code()).unwrap_or(None);
+    
 
     match result {
         Some(Ok(data)) => Ok(data),
@@ -324,7 +422,33 @@ fn run_once_with(
                 Err(format!("{}\n\n技术信息：{}", msg, detail))
             }
         }
-        None => Err("引擎未返回结果，进程可能异常退出。".to_string()),
+        None => {
+            let err_text = stderr_buf.lock().join("
+");
+            let tail: String = err_text
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .rev()
+                .take(12)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("
+");
+            if tail.is_empty() {
+                Err("引擎未返回结果，进程可能异常退出。
+（引擎没有输出任何错误信息）".to_string())
+            } else {
+                Err(format!(
+                    "引擎未返回结果，进程可能异常退出。
+
+引擎错误输出：
+{}",
+                    tail
+                ))
+            }
+        }
     }
 }
 
@@ -439,13 +563,37 @@ pub async fn start_transcribe(
             match kind {
                 "accepted" => {}
                 "progress" => {
-                    let _ = app_for_events.emit("transcribe://progress", &v);
+                    // 字段名适配：bridge.py 发 `id`，前端读 `taskId`。
+                    // 不做转换会让前端 payload.taskId 恒为 undefined，
+                    // 事件被 `if (p.taskId !== taskIdRef.current) return` 全部丢弃。
+                    let _ = app_for_events.emit(
+                        "transcribe://progress",
+                        serde_json::json!({
+                            "taskId": tid_for_reader,
+                            "stage": v.get("stage"),
+                            "pct": v.get("pct"),
+                            "message": v.get("message"),
+                        }),
+                    );
                 }
                 "log" => {
-                    let _ = app_for_events.emit("transcribe://log", &v);
+                    let _ = app_for_events.emit(
+                        "transcribe://log",
+                        serde_json::json!({
+                            "taskId": tid_for_reader,
+                            "message": v.get("message"),
+                        }),
+                    );
                 }
                 "result" => {
-                    let _ = app_for_events.emit("transcribe://done", &v);
+                    // bridge.py 把结果放在 `data`，前端读 `result`
+                    let _ = app_for_events.emit(
+                        "transcribe://done",
+                        serde_json::json!({
+                            "taskId": tid_for_reader,
+                            "result": v.get("data"),
+                        }),
+                    );
                     // 与 run_once 同源的问题：bridge 的 `for line in sys.stdin`
                     // 收到 EOF 才退出。扒谱完成后必须主动关 stdin，否则
                     // Python 进程会一直挂着（GPU 显存不释放）。
@@ -457,7 +605,14 @@ pub async fn start_transcribe(
                     break;
                 }
                 "error" => {
-                    let _ = app_for_events.emit("transcribe://error", &v);
+                    let _ = app_for_events.emit(
+                        "transcribe://error",
+                        serde_json::json!({
+                            "taskId": tid_for_reader,
+                            "message": v.get("message"),
+                            "detail": v.get("detail"),
+                        }),
+                    );
                     if let Some(mut sc) = sidecar_for_reader.lock().take() {
                         drop(sc.stdin.take());
                         let _ = sc.child.try_wait();
@@ -504,7 +659,11 @@ pub async fn start_transcribe(
 }
 
 #[tauri::command]
-pub async fn cancel_transcribe(state: State<'_, EngineState>, task_id: String) -> Result<(), String> {
+pub async fn cancel_transcribe(
+    app: AppHandle,
+    state: State<'_, EngineState>,
+    task_id: String,
+) -> Result<(), String> {
     let handle = state.tasks.lock().remove(&task_id);
     let Some(sidecar) = handle else {
         // 任务已结束：不是错误，幂等返回
@@ -518,6 +677,20 @@ pub async fn cancel_transcribe(state: State<'_, EngineState>, task_id: String) -
         let _ = sc.child.kill();
         let _ = sc.child.wait();
     }
+
+    // ── 必须补发一条终止事件 ──
+    // 读线程在 stdout EOF 后只做回收、不 emit 任何事件（见其收尾分支），
+    // 而前端 useTranscribeTask 只在收到 error 事件时才会把状态从 running
+    // 切走。kill 走的是「进程直接消失」路径，bridge.py 的 KeyboardInterrupt
+    // 分支根本不会执行。若不在这里补发，取消后 UI 会**永久卡在运行中**。
+    let _ = app.emit(
+        "transcribe://error",
+        serde_json::json!({
+            "taskId": task_id,
+            "message": "任务已被取消。",
+            "detail": "cancelled by user",
+        }),
+    );
     Ok(())
 }
 
@@ -742,4 +915,94 @@ fn base_python() -> Option<String> {
         }
     }
     None
+}
+
+// ─────────────────────────────────────────────────────────────
+// 契约回归测试
+//
+// 这些测试守护的是**跨语言边界的字段名**——本项目最容易出错、
+// 且出错后最难发现的地方（参数被静默过滤、事件被静默丢弃，都不报错）。
+// 命令：cargo test --manifest-path src-tauri/Cargo.toml
+// ─────────────────────────────────────────────────────────────
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+
+    fn sample_request() -> TranscribeRequest {
+        TranscribeRequest {
+            mode: "basic".into(),
+            input_path: r"D:\x\a.mp3".into(),
+            output_path: Some(r"D:\x\a.mid".into()),
+            extra_inputs: vec![r"D:\x\b.wav".into()],
+            n_peaks: Some(6),
+            hop_length: Some(512),
+            onset_threshold: Some(0.3),
+            pitch_threshold: Some(0.1),
+            min_note_duration: Some(4),
+            tempo: Some(120.0),
+            perceptual: Some(false),
+            simplify: Some(0),
+            piano_mode: Some(false),
+            demucs_model: Some("htdemucs".into()),
+            device: Some("auto".into()),
+            allow_hpss_fallback: Some(true),
+            track_names: vec![],
+        }
+    }
+
+    /// bridge.py 的 handle_transcribe 白名单（snake_case）。
+    /// **若上游改了 bridge.py，这个列表必须同步**——否则参数会被静默丢弃。
+    const BRIDGE_ALLOWLIST: &[&str] = &[
+        "mode", "input_path", "output_path", "extra_inputs", "n_peaks",
+        "hop_length", "onset_threshold", "pitch_threshold",
+        "min_note_duration", "tempo", "perceptual", "simplify",
+        "piano_mode", "demucs_model", "device", "allow_hpss_fallback",
+        "track_names",
+    ];
+
+    /// P0-A3 回归：发给 Python 的 payload 必须是 snake_case。
+    /// 曾因 `rename_all = "camelCase"` 产出 `inputPath`，被 bridge 全部过滤，
+    /// 导致扒谱在所有环境 100% 失败且**不报错**。
+    #[test]
+    fn payload_to_python_is_snake_case() {
+        let v = serde_json::to_value(sample_request()).expect("序列化失败");
+        for k in BRIDGE_ALLOWLIST {
+            assert!(v.get(*k).is_some(), "缺少 snake_case 键：{k}");
+        }
+        for bad in ["inputPath", "outputPath", "nPeaks", "extraInputs", "pianoMode"] {
+            assert!(v.get(bad).is_none(), "不应出现 camelCase 键：{bad}");
+        }
+    }
+
+    /// A3 的另一半：前端发来的 camelCase 必须能被反序列化。
+    #[test]
+    fn inbound_from_frontend_is_camel_case() {
+        let js = serde_json::json!({
+            "mode": "basic",
+            "inputPath": r"D:\x\a.mp3",
+            "nPeaks": 6,
+            "pianoMode": true,
+        });
+        let req: TranscribeRequest =
+            serde_json::from_value(js).expect("camelCase 反序列化失败");
+        assert_eq!(req.input_path, r"D:\x\a.mp3");
+        assert_eq!(req.n_peaks, Some(6));
+        assert_eq!(req.piano_mode, Some(true));
+    }
+
+    /// 防漂移：序列化产生的键必须**全部**落在 bridge 白名单内，
+    /// 否则新增字段会被静默丢弃（不报错，极难发现）。
+    #[test]
+    fn payload_keys_all_land_in_bridge_allowlist() {
+        let v = serde_json::to_value(sample_request()).expect("序列化失败");
+        let obj = v.as_object().expect("应为对象");
+        let unknown: Vec<&String> = obj
+            .keys()
+            .filter(|k| !BRIDGE_ALLOWLIST.contains(&k.as_str()))
+            .collect();
+        assert!(
+            unknown.is_empty(),
+            "以下键不在 bridge.py 白名单内，会被静默丢弃：{unknown:?}"
+        );
+    }
 }

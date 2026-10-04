@@ -109,7 +109,9 @@ export function useTranscribeTask(): UseTask {
     ipc
       .subscribeAll({
         progress: (p: ProgressEvent) => {
-          if (p.taskId !== taskIdRef.current) return
+          // 引擎可能在 invoke 返回 taskId 之前就推送首帧事件（冷启动竞态），
+          // 故未拿到 taskId 时不过滤；拿到后才按 taskId 严格匹配。
+          if (taskIdRef.current && p.taskId !== taskIdRef.current) return
           set((s) => ({
             ...s,
             stage: p.stage,
@@ -119,11 +121,11 @@ export function useTranscribeTask(): UseTask {
           }))
         },
         log: (l) => {
-          if (l.taskId !== taskIdRef.current) return
+          if (taskIdRef.current && l.taskId !== taskIdRef.current) return
           set((s) => ({ ...s, logs: appendLog(s.logs, l.message, s.stage, logSeq) }))
         },
         done: (d) => {
-          if (d.taskId !== taskIdRef.current) return
+          if (taskIdRef.current && d.taskId !== taskIdRef.current) return
           runningRef.current = false
           set((s) => ({
             ...s,
@@ -131,13 +133,13 @@ export function useTranscribeTask(): UseTask {
             pct: 1,
             stage: 'export',
             result: d.result,
-            elapsed: d.result.elapsed,
+            elapsed: d.result?.elapsed ?? 0,
             message: '完成',
             logs: appendLog(s.logs, '扒谱完成，已导出 MIDI', 'export', logSeq),
           }))
         },
         error: (e) => {
-          if (e.taskId !== taskIdRef.current) return
+          if (taskIdRef.current && e.taskId !== taskIdRef.current) return
           runningRef.current = false
           set((s) => ({
             ...s,

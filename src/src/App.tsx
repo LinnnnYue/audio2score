@@ -49,9 +49,12 @@ export default function App() {
         if (alive) setEngineReady(s.ready)
       })
       .catch(() => {
-        // 探测失败时不阻塞主界面——让用户能进 App 再看到具体报错，
-        // 总好过白屏卡死在引导页。
-        if (alive) setEngineReady(true)
+        // ⚠️ 探测失败**不能**等同于「已就绪」。
+        // 曾把 catch 写成 setEngineReady(true)，理由是「让用户能进主界面看到报错」，
+        // 结果把「引擎不可用」与「引擎就绪」混为一谈：用户被直接放进主界面，
+        // 每个功能都报「引擎未返回结果」，却拿不到任何自救入口。
+        // 正解：交给安装向导——它会显示具体错误并给出「重新检测 / 重新安装」。
+        if (alive) setEngineReady(false)
       })
     return () => {
       alive = false
