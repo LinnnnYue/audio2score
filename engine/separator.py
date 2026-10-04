@@ -27,6 +27,12 @@ separator — 音源分离适配层（人声 / 伴奏）
 - 异常可捕获并中文化，而非读子进程 stderr
 - 首次运行自动下载模型权重（demucs 官方行为），进度可见
 
+## 模型来源（墙内可达性治理）
+demucs 4.1.0 的 `get_model()` 把 HuggingFace Hub 放在第一位，墙内直连会
+TCP 超时并重试 5 次才回落官方源 —— 首次分离要白等数分钟。
+本模块把加载顺序改为「本地 → 官方直链 → 国内镜像」三跳，
+详见 `_load_separator_model()` 上方的注释与实测数据。
+
 ## 降级链
     demucs (htdemucs, CUDA)
       ↓ 失败（无 GPU / 显存不足 / 模型下载失败）
@@ -43,6 +49,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
+import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,6 +132,275 @@ def _ensure_wav(src: str, workdir: str) -> str:
     return transcode_to_wav(src, workdir)
 
 
+# ── 模型权重来源治理（墙内可达性）──────────────────────────────────────────
+#
+# 踩坑实录（2026-10-05，主上老公的机器）：首次分离卡在
+#     '[WinError 10060] 由于连接方在一段时间后没有正确答复…' thrown while
+#     requesting HEAD https://huggingface.co/adefossez/HTDemucs/resolve/main/htdemucs.yaml
+#     Retrying in 1s [Retry 1/5].
+# 一直重试到 5/5 后彻底失败。
+#
+# 根因：demucs 4.1.0（PyPI 2026-07-11 发布，`pip install demucs` 的默认版本）
+# 把 **HuggingFace Hub 放在第一位**（`demucs/pretrained.py:73-82` 调
+# `get_hf_model()`），`dl.fbaipublicfiles.com` 只是 `except` 分支里的兜底。
+# 本机实测（黑龙江）：
+#     https://huggingface.co/…          连接超时（curl exit 28）
+#     https://dl.fbaipublicfiles.com/…  200 OK，ttfb 0.64s
+#     https://hf-mirror.com/…           307 → 200，0.77s
+# 于是墙内每次「首次分离」都要先等 HF 的 TCP 超时 × 5 次重试（数分钟），
+# 之后才（或根本没）落到兜底源。
+#
+# 为什么本机不复现：`~/.cache/huggingface/hub/models--adefossez--HTDemucs`
+# 早有缓存，HF 分支在本地命中即返回，网络代码路径**从未被真正触发**。
+#
+# 解法：把「HF 优先」改成「本地 → 官方直链 → 国内镜像」三跳，全程不改
+# demucs 与 huggingface_hub 一行（依赖只读，同 BOUNDARY B-1 的红线精神）。
+
+_MODEL_DIR_NAME = "models"
+"""本地权重目录名，落点 `<engine>/models`。放对文件即可完全离线使用。"""
+
+_OFFICIAL_TH_NAME = "955717e8-8726e21a.th"
+"""`htdemucs` 这个 bag 唯一成员的权重文件名。
+
+签名与校验和取自 `demucs/remote/files.txt`（`955717e8-8726e21a.th`），
+bag 定义 `demucs/remote/htdemucs.yaml` 的内容就是 `models: ['955717e8']`。
+"""
+
+_OFFICIAL_TH_URL = (
+    "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/" + _OFFICIAL_TH_NAME
+)
+"""官方直链。国内实测可达（AWS CDN）。"""
+
+_HF_ENDPOINTS_DEFAULT = (
+    "https://hf-mirror.com",
+    "https://aifasthub.com",
+)
+"""HF 国内镜像候选，**按序探活、取第一个可达者**。
+
+实测（2026-10-05，黑龙江）：
+    https://hf-mirror.com                     307 → 200，0.61s   ✓
+    https://aifasthub.com                     200，0.90s         ✓
+    https://hf-api.gitee.com                  404（无该路径）
+    https://mirror.sjtu.edu.cn/hugging-face   404
+    https://huggingface.co                    连接超时
+
+用户可用环境变量 `BAPU_HF_ENDPOINTS`（逗号分隔）覆盖，例如配了代理想走官方：
+    BAPU_HF_ENDPOINTS=https://huggingface.co
+"""
+
+_PROBE_TIMEOUT = 4.0
+"""单次探活超时（秒）。候选逐个探，最坏耗时 = 该值 × 候选数。"""
+
+_PROBE_UA = "bapu-engine/0.1 (demucs model fetch)"
+
+
+def models_dir() -> Path:
+    """本地权重目录（`<engine>/models`）。目录不存在不代表出错，仅表示需联网下载。"""
+    return Path(__file__).resolve().parent / _MODEL_DIR_NAME
+
+
+def _ensure_local_bag_yaml(root: Path, model: str) -> None:
+    """
+    本地目录缺 `<model>.yaml` 时，从 demucs 自带的 `remote/` 复制一份。
+
+    用户手动兜底时只需下载 `.th` 本身，bag 定义由我们补齐，少一个出错点。
+    """
+    target = root / f"{model}.yaml"
+    if target.is_file():
+        return
+    try:
+        import demucs
+
+        src = Path(demucs.__file__).resolve().parent / "remote" / f"{model}.yaml"
+        if src.is_file():
+            root.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, target)
+    except Exception:  # noqa: BLE001 — 补齐失败不致命，交给加载器逐跳报错
+        pass
+
+
+def _set_hf_offline(offline: bool) -> None:
+    """
+    切换 HuggingFace 离线模式。
+
+    `huggingface_hub.constants` 在 import 时就把环境变量固化成了模块常量，
+    因此**只改 `os.environ` 对已 import 的进程无效**，必须同时改常量。
+    （demucs 的 `hf.py` 是函数内 `from huggingface_hub import hf_hub_download`，
+    所以「首次 import 前设 env」这条也有效——两条都做，互为保险。）
+    """
+    if offline:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+    else:
+        os.environ.pop("HF_HUB_OFFLINE", None)
+    try:
+        from huggingface_hub import constants
+
+        constants.HF_HUB_OFFLINE = offline
+    except Exception:  # noqa: BLE001 — 未装 huggingface_hub 时只需 env
+        pass
+
+
+def _set_hf_endpoint(endpoint: str) -> None:
+    """同 `_set_hf_offline`：env 与已 import 的常量都要改。"""
+    os.environ["HF_ENDPOINT"] = endpoint
+    try:
+        from huggingface_hub import constants
+
+        constants.ENDPOINT = endpoint
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _hf_endpoints() -> tuple[str, ...]:
+    """当前生效的镜像候选。`BAPU_HF_ENDPOINTS`（逗号分隔）可整体覆盖。"""
+    raw = (os.environ.get("BAPU_HF_ENDPOINTS") or "").strip()
+    if not raw:
+        return _HF_ENDPOINTS_DEFAULT
+    items = tuple(x.strip().rstrip("/") for x in raw.split(",") if x.strip())
+    return items or _HF_ENDPOINTS_DEFAULT
+
+
+def _probe_url(url: str) -> float | None:
+    """
+    HEAD 探测 URL 是否可达，返回耗时（秒）；不可达返回 None。
+
+    为什么非探不可：直接让 demucs / torch 去试，一次连不上要等**系统级 TCP
+    超时**（Windows 约 21s），再叠加各自的重试 —— 用户看到的就是「卡死」。
+    这里 4s 判死并顺势换源，把不确定性压到最小。
+    """
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": _PROBE_UA})
+        started = time.monotonic()
+        with urllib.request.urlopen(req, timeout=_PROBE_TIMEOUT) as resp:
+            if 200 <= resp.status < 400:
+                return time.monotonic() - started
+    except Exception:  # noqa: BLE001 — 探测失败一律视作不可达
+        return None
+    return None
+
+
+def _hf_probe_url(endpoint: str, model: str) -> str:
+    """
+    构造探活用的 HF 原始文件 URL：`<endpoint>/<ns>/<repo>/resolve/main/<model>.yaml`。
+
+    仓库名映射**复用 demucs 自己的 `hf.py`**，不另写一份，避免两边漂移
+    （`htdemucs` → `HTDemucs`，`htdemucs_ft` → `HTDemucs-ft`，其余 → `Demucs-<name>`）。
+    demucs 4.0.1 没有 `hf.py`（那时还不走 HF），此时返回空串，调用方自然跳过镜像跳。
+    """
+    try:
+        from demucs.hf import DEFAULT_NAMESPACE, hf_repo_name
+
+        namespace, name = DEFAULT_NAMESPACE, model
+        if "/" in model:
+            namespace, name = model.split("/", 1)
+        return f"{endpoint}/{namespace}/{hf_repo_name(name)}/resolve/main/{name}.yaml"
+    except Exception:  # noqa: BLE001
+        return f"{endpoint}/adefossez/HTDemucs/resolve/main/{model}.yaml"
+
+
+def _pick_mirror(model: str) -> str | None:
+    """按序探活镜像候选，返回第一个可达者；全不可达返回 None。"""
+    for endpoint in _hf_endpoints():
+        url = _hf_probe_url(endpoint, model)
+        if url and _probe_url(url) is not None:
+            return endpoint
+    return None
+
+
+def _model_error_message(model: str, errors: list[str]) -> str:
+    """把三跳的失败原因汇总成可操作的中文提示（不写「请检查网络」这种废话）。"""
+    lines = [
+        f"分离模型「{model}」下载失败。已依次尝试：本地权重目录 → 官方源 → 国内镜像。",
+        "",
+    ]
+    if errors:
+        lines.append("失败原因：")
+        lines += [f"  · {e}" for e in errors]
+        lines.append("")
+    lines += [
+        "可以这样解决（任选其一）：",
+        "  1. 检查网络后重试。若使用了代理，可设环境变量 "
+        "BAPU_HF_ENDPOINTS=https://huggingface.co 直接走官方站点；"
+        "也可用逗号分隔填多个镜像，程序会按序探活取第一个可用的。",
+        "  2. 手动下载权重放到下面这个目录，再重试（此后永久离线可用）：",
+        f"     {models_dir()}",
+        f"     需要文件：{_OFFICIAL_TH_NAME}",
+        f"     下载地址：{_OFFICIAL_TH_URL}",
+        "  3. 暂时无法下载时，可改用「基本扒谱」路径：不做分离，"
+        "直接对整段音频做多音高识别。",
+    ]
+    return "\n".join(lines)
+
+
+def _load_separator_model(model: str, progress: ProgressFn | None):
+    """
+    按「墙内可达优先」的顺序加载 demucs 模型，返回已 eval 的模型对象。
+
+    跳 1 本地权重目录   `get_model(model, repo=<engine>/models)` —— 零网络
+    跳 2 官方直链       探活通过后强制离线，让 demucs 直接落到 dl.fbaipublicfiles.com
+    跳 3 HF 国内镜像    按序探活候选镜像，用第一个可达的 endpoint 再试一次
+
+    跳 1 的意义不只是「快」：它是**离线可用**的唯一保障，也是用户手动兜底的
+    落点（错误提示里就把这个目录告诉用户）。
+
+    跳 2/跳 3 都**先探活再动手**：直接让 demucs/torch 去试的话，一次连不上
+    要等系统 TCP 超时（Windows 约 21s）再叠加自身重试，用户看到的就是「卡死」。
+    """
+    from demucs.pretrained import get_model
+
+    errors: list[str] = []
+
+    # ── 跳 1：本地权重目录 ──
+    root = models_dir()
+    if root.is_dir() and any(root.glob("*.th")):
+        _ensure_local_bag_yaml(root, model)
+        try:
+            net = get_model(model, repo=root)
+            if progress:
+                progress("separate", 0.12, "已从本地读取分离模型")
+            return net
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"本地权重目录：{type(e).__name__}: {str(e)[:150]}")
+
+    # ── 跳 2：官方直链（AWS CDN，国内多数情况可达）──
+    if _probe_url(_OFFICIAL_TH_URL) is not None:
+        if progress:
+            progress(
+                "separate", 0.06,
+                "正在下载分离模型权重（首次约 80MB，之后离线可用）…",
+            )
+        _set_hf_offline(True)  # 强制离线 → demucs 只能落到 dl.fbaipublicfiles.com
+        try:
+            net = get_model(model)
+            if progress:
+                progress("separate", 0.12, "分离模型已就绪")
+            return net
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"官方源：{type(e).__name__}: {str(e)[:150]}")
+    else:
+        errors.append("官方源 dl.fbaipublicfiles.com：探测不可达，已跳过")
+
+    # ── 跳 3：HF 国内镜像（探活择优）──
+    candidates = _hf_endpoints()
+    endpoint = _pick_mirror(model)
+    if endpoint is None:
+        errors.append("HF 镜像：" + "、".join(candidates) + " 均探测不可达")
+    else:
+        if progress:
+            progress("separate", 0.06, f"正在从镜像源下载分离模型（{endpoint}）…")
+        _set_hf_offline(False)
+        _set_hf_endpoint(endpoint)
+        try:
+            net = get_model(model)
+            if progress:
+                progress("separate", 0.12, "分离模型已就绪")
+            return net
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"镜像源 {endpoint}：{type(e).__name__}: {str(e)[:150]}")
+
+    raise SeparationError(_model_error_message(model, errors), "all model sources failed")
+
+
 def _run_demucs_api(
     wav_path: str,
     workdir: str,
@@ -142,22 +419,14 @@ def _run_demucs_api(
     import torch
     from demucs.apply import apply_model
     from demucs.audio import AudioFile, save_audio
-    from demucs.pretrained import get_model
 
     if progress:
         progress("separate", 0.05, "正在加载分离模型…")
 
-    try:
-        net = get_model(model)
-    except Exception as e:  # noqa: BLE001 — 首次运行会下载权重，网络失败常见
-        if progress:
-            progress("separate", 0.05, "模型加载中（首次运行需下载权重）…")
-        raise SeparationError(
-            f"分离模型「{model}」加载失败。\n"
-            f"首次运行需要联网下载模型权重，请检查网络后重试。\n\n"
-            f"技术信息：{type(e).__name__}: {str(e)[:200]}",
-            f"get_model({model}) failed",
-        ) from e
+    # 模型来源按「本地 → 官方直链 → 国内镜像」三跳加载。
+    # 失败原因已在 `_load_separator_model` 里汇总成可操作的中文提示，
+    # 此处**不再二次包装**，否则会把详细信息覆盖成泛泛的「请检查网络」。
+    net = _load_separator_model(model, progress)
 
     if progress:
         progress("separate", 0.15, "正在读取音频…")

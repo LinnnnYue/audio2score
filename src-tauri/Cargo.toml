@@ -1,6 +1,6 @@
 [package]
 name = "musicxml-scribe"
-version = "0.1.0"
+version = "0.1.1"
 description = "音频自动扒谱桌面应用"
 authors = ["you"]
 edition = "2021"
@@ -22,6 +22,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 parking_lot = "0.12"
+
+# 问题上报用的极简 HTTP 客户端。
+# 刻意用 native-tls（Windows 走系统 SChannel）而非默认的 rustls：
+# rustls 依赖 ring，而 ring 在 Windows 上编译需要 nasm + C 工具链，
+# 会给「换台机器就能构建」这件事平添一个坑。native-tls 纯 FFI 系统 API，
+# 且顺带省掉打包根证书的体积。
+ureq = { version = "2.10", default-features = false, features = ["native-tls"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

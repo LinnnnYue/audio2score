@@ -7,11 +7,25 @@
  *   3. 实时日志行（引擎与第三方库输出，等宽小字，新行淡入）
  *
  * 状态覆盖：running / error / cancelled。
+ *
+ * 失败时额外提供「报告问题」—— 小白不知道日志在哪，也不该知道，
+ * 一键把现场事实（系统编码、Python 环境、输入路径、日志）打包成可发送的文本。
  */
 
-import { AlertCircle, CheckCircle2, Loader2, Square } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import {
+  AlertCircle,
+  Bug,
+  CheckCircle2,
+  FolderOpen,
+  Loader2,
+  Save,
+  Square,
+} from 'lucide-react'
 import clsx from 'clsx'
 import { formatSeconds } from '../lib/format'
+import { copyText } from '../lib/clipboard'
+import * as ipc from '../lib/ipc'
 import { STAGE_ANCHORS, activeAnchorIndex, type TaskState } from '../lib/useTranscribeTask'
 import { Tooltip } from './Tooltip'
 
@@ -20,13 +34,107 @@ interface Props {
   onCancel: () => void
   /** 引擎下发的阶段中文标签，来自 get_modes().stageLabels */
   stageLabels: Record<string, string>
+  /** 本次任务的主输入路径，进诊断报告用（可为空：提交前就失败时没有） */
+  inputPath?: string | null
+  /** 当前模式中文名，进诊断报告用 */
+  modeLabel?: string | null
 }
 
-export function ProgressPanel({ task, onCancel, stageLabels }: Props) {
+/** 诊断报告：一次生成、多处复用（复制 / 保存 / 预览） */
+interface ReportState {
+  /** 报告正文；null = 尚未生成 */
+  text: string | null
+  /** 生成或写入进行中 */
+  busy: boolean
+  /** 一行操作反馈；null = 不显示 */
+  note: { tone: 'ok' | 'bad'; text: string } | null
+  /** 已落盘的绝对路径 */
+  savedPath: string | null
+}
+
+const REPORT_INITIAL: ReportState = { text: null, busy: false, note: null, savedPath: null }
+
+/** 文件名用的时间戳，本地时区 */
+function timeStamp(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+}
+
+function errText(e: unknown): string {
+  return typeof e === 'string' ? e : e instanceof Error ? e.message : String(e)
+}
+
+export function ProgressPanel({ task, onCancel, stageLabels, inputPath, modeLabel }: Props) {
   const { status, stage, pct, message, logs, error, elapsed } = task
   const running = status === 'running'
   const activeIdx = activeAnchorIndex(stage, status)
   const showPct = Math.round(pct * 100)
+
+  const [rep, setRep] = useState<ReportState>(REPORT_INITIAL)
+
+  /** 采集现场事实。Rust 侧补齐版本号，前端只交界面才知道的部分。 */
+  const ensureReport = useCallback(async () => {
+    const text = await ipc.buildDiagnosticReport({
+      logs: logs.map((l) => l.text),
+      errorMessage: error?.message ?? null,
+      errorDetail: error?.detail ?? null,
+      inputPath: inputPath ?? null,
+      mode: modeLabel ?? null,
+      generatedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+      appVersion: null,
+    })
+    setRep((s) => ({ ...s, text }))
+    return text
+  }, [logs, error, inputPath, modeLabel])
+
+  /** 主路径：能直报就直报，不能就复制 —— 两者都不需要小白知道日志在哪 */
+  const onReport = useCallback(async () => {
+    setRep((s) => ({ ...s, busy: true, note: null }))
+    try {
+      const text = await ensureReport()
+      if ((await ipc.submitDiagnosticReport(text)).status === 'sent') {
+        setRep((s) => ({ ...s, busy: false, note: { tone: 'ok', text: '报告已提交，感谢反馈' } }))
+        return
+      }
+      const copied = await copyText(text)
+      setRep((s) => ({
+        ...s,
+        busy: false,
+        note: copied
+          ? { tone: 'ok', text: '报告已复制，粘贴发给开发者即可' }
+          : { tone: 'bad', text: '复制失败，请改用「保存报告」' },
+      }))
+    } catch (e) {
+      setRep((s) => ({
+        ...s,
+        busy: false,
+        note: { tone: 'bad', text: `生成报告失败：${errText(e)}` },
+      }))
+    }
+  }, [ensureReport])
+
+  /** 备用路径：落盘并直接定位到文件，省掉「文件存哪了」这一问 */
+  const onSaveReport = useCallback(async () => {
+    setRep((s) => ({ ...s, busy: true, note: null }))
+    try {
+      const text = await ensureReport()
+      const target = await ipc.pickTextSavePath(`扒谱助手-诊断报告-${timeStamp()}.txt`)
+      if (!target) {
+        setRep((s) => ({ ...s, busy: false })) // 用户取消：静默
+        return
+      }
+      const saved = await ipc.saveDiagnosticReport(target, text)
+      setRep((s) => ({ ...s, busy: false, savedPath: saved, note: { tone: 'ok', text: '报告已保存' } }))
+      await ipc.revealInFolder(saved)
+    } catch (e) {
+      setRep((s) => ({ ...s, busy: false, note: { tone: 'bad', text: `保存失败：${errText(e)}` } }))
+    }
+  }, [ensureReport])
+
+  const onOpenFolder = useCallback(() => {
+    if (rep.savedPath) void ipc.revealInFolder(rep.savedPath)
+  }, [rep.savedPath])
 
   return (
     <div className="flex flex-col gap-3.5">
@@ -141,6 +249,65 @@ export function ProgressPanel({ task, onCancel, stageLabels }: Props) {
               <p className="num mt-1 break-all text-[10px] leading-relaxed text-ink-faint">
                 {error.detail}
               </p>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* ---- 问题反馈：一键取证 ---- */}
+      {status === 'error' && error && (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onReport}
+              disabled={rep.busy}
+              className="btn btn-primary"
+            >
+              {rep.busy ? (
+                <Loader2 size={12} strokeWidth={2} className="animate-spin" />
+              ) : (
+                <Bug size={12} strokeWidth={2} />
+              )}
+              报告问题
+            </button>
+            <button
+              type="button"
+              onClick={onSaveReport}
+              disabled={rep.busy}
+              className="btn btn-ghost"
+            >
+              <Save size={12} strokeWidth={2} />
+              保存报告
+            </button>
+            {rep.savedPath && (
+              <button type="button" onClick={onOpenFolder} className="btn btn-ghost">
+                <FolderOpen size={12} strokeWidth={2} />
+                打开文件夹
+              </button>
+            )}
+            {rep.note && (
+              <span
+                role="status"
+                className={clsx(
+                  'animate-pop-in text-[11px]',
+                  rep.note.tone === 'ok' ? 'text-ink-dim' : 'text-bad',
+                )}
+              >
+                {rep.note.text}
+              </span>
+            )}
+          </div>
+
+          {/* 透明：发出去的是什么，点开就能看 */}
+          {rep.text && (
+            <details className="group/rep">
+              <summary className="cursor-pointer list-none text-[10.5px] text-ink-faint transition-colors duration-150 ease-out [[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink-dim">
+                查看报告内容
+              </summary>
+              <pre className="num mt-1.5 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--r-sm)] border border-line bg-[var(--surface-3)] px-2.5 py-2 text-[10px] leading-relaxed text-ink-dim">
+                {rep.text}
+              </pre>
             </details>
           )}
         </div>

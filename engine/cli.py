@@ -80,17 +80,20 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 可用模式:
-  full_auto      全自动扒谱（人声 + 伴奏双轨）
-  accompaniment  只扒伴奏
-  vocals         只扒人声旋律
-  basic          基本扒谱（乐器 / 单音轨）
-  basic_multi    基本扒谱（多音轨）
-  pre_separated  已分离音频直入（配合 --extra 传入伴奏）
+  full_auto            全自动扒谱（人声 + 伴奏双轨）
+  accompaniment        只扒伴奏
+  vocals               只扒人声旋律
+  basic                整段直扒（乐器 · 不分离）
+  basic_vocals         单轨直扒（人声旋律 · 不分离）
+  basic_accompaniment  单轨直扒（伴奏多音高 · 不分离）
+  basic_multi          多轨直扒（每个文件一轨 · 不分离）
+  pre_separated        已分离音频直入（配合 --extra 传入伴奏）
 
 示例:
   bapu 歌曲.mp3                          最简用法
   bapu 歌曲.mp3 -m vocals -o 旋律.mid    只扒人声
   bapu *.mp3 -m accompaniment            批量扒伴奏
+  bapu 人声.wav -m basic_vocals          已分好的人声 → 单轨旋律（小提琴谱用）
   bapu 人声.wav -m pre_separated --extra 伴奏.wav
   bapu 歌曲.mp3 --json                   输出 JSON 供脚本消费
   bapu --caps                            查看环境能力
@@ -205,8 +208,17 @@ def _resolve_output(args: argparse.Namespace) -> str | None:
                 break
 
     if args.mode == "pre_separated" and args.extra:
-        b, ext = os.path.splitext(out)
-        out = f"{b}_multi{ext or '.mid'}"
+        # 只有「输出名是由输入名推导出来的」才加 _multi 后缀，
+        # 目的是避免多轨结果悄悄覆盖掉同名单轨结果。
+        #
+        # 踩坑实录：初版无条件加后缀，于是 `-o a.mid` 实际产出 `a_multi.mid`，
+        # 用户按自己给的 -o 路径根本找不到文件 —— 典型的「承诺了但没兑现」。
+        # 用户显式指定了路径，就必须尊重；多轨信息只在终端提示一句。
+        if not args.output:
+            b, ext = os.path.splitext(out)
+            out = f"{b}_multi{ext or '.mid'}"
+        elif not args.json:
+            sys.stderr.write(f"[扒谱] 多轨输出（人声 + 伴奏）：{out}\n")
     return out
 
 

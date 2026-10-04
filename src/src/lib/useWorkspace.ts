@@ -6,7 +6,8 @@
  *
  * 各页差异只在「要几个文件槽」：
  *   功能页1 歌曲扒谱   → 1 个主输入
- *   功能页2 基本扒谱   → 1 个主输入，或 2 个（人声 + 伴奏，已分离直入）
+ *   功能页2 音频直扒   → 1 个主输入（单轨 / 多轨），
+ *                        或 2 个（人声 + 伴奏，已分离直入）
  */
 
 import { useCallback, useMemo, useState } from 'react'
@@ -62,6 +63,18 @@ export function useWorkspace(config: WorkspaceConfig) {
 
   const isBasicMulti = mode === 'basic_multi'
 
+  /**
+   * 该模式最多接受几个输入文件。
+   *   已分离直入（两槽）→ 2（人声 + 伴奏）
+   *   多轨直扒         → 6（逐轨各出一轨）
+   *   其余单轨直扒     → 1
+   *
+   * 必须由模式容量统一决定，不能只写在 DropZone 上：否则「先选多轨丢 3 个文件，
+   * 再切到单轨模式」时，多出来的 2 个文件会**留在列表里但被引擎忽略** ——
+   * 用户看到 3 个文件、只出 1 轨，且没有任何提示。静默吞文件是 bug。
+   */
+  const maxFiles = needsTwoSlots ? 2 : isBasicMulti ? 6 : 1
+
   /** 拉取模式元信息 + 环境自检（单一真源，不在前端硬编码模式文案） */
   const load = useCallback(async () => {
     setLoadError(null)
@@ -71,13 +84,18 @@ export function useWorkspace(config: WorkspaceConfig) {
       setModes(payload.modes)
       setStageLabels(payload.stageLabels ?? {})
       setEnv(e)
-      // 默认选中该页第一个模式
-      const first = payload.modes.find((x) => x.page === config.page)
-      if (first) setMode((cur) => cur ?? first.mode)
+      // 默认选中：优先 config.defaultMode（须属于本页），否则取本页第一条。
+      // 刻意不写成「数组顺序即默认」这种隐式契约——引擎调整 describe_modes
+      // 的条目顺序时，前端默认项会静默漂移，且没人会发现。
+      const prefer = payload.modes.find(
+        (x) => x.mode === config.defaultMode && x.page === config.page,
+      )
+      const initial = prefer ?? payload.modes.find((x) => x.page === config.page)
+      if (initial) setMode((cur) => cur ?? initial.mode)
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err))
     }
-  }, [config.page])
+  }, [config.page, config.defaultMode])
 
   /** 选择输出位置；取消则留空，由引擎放在输入文件同目录 */
   const chooseOutput = useCallback(async () => {
@@ -113,6 +131,13 @@ export function useWorkspace(config: WorkspaceConfig) {
     if (outputPath) req.outputPath = outputPath
     // 人声 + 伴奏直入时明确轨名顺序：[人声, 伴奏]
     if (mode === 'pre_separated') req.trackNames = ['Voice', 'Accompaniment']
+    // 多轨直扒放了多个文件时逐轨编号，否则 N 条轨会同名「Instrument」，
+    // 在 MuseScore 里完全分不清哪条对应哪个文件。
+    // 轨名必须是纯 ASCII（引擎侧 midi_post 只允许 \x20-\x7e），
+    // 所以不能用文件名，只能用「Instrument N」。
+    if (mode === 'basic_multi' && files.length > 1) {
+      req.trackNames = files.map((_, i) => `Instrument ${i + 1}`)
+    }
 
     await task.start(req)
   }, [mode, files, task, needsTwoSlots, params, outputPath])
@@ -123,6 +148,20 @@ export function useWorkspace(config: WorkspaceConfig) {
     setOutputPath('')
     task.reset()
   }, [task])
+
+  /**
+   * 把文件数裁到当前模式的容量，并清掉旧输出路径与任务结果。
+   * 返回被裁掉的个数（0 = 没裁）。
+   *
+   * 为什么必须有：不裁的话，「先选多轨直扒丢 3 个文件，再切到单轨模式」会留下
+   * 3 个文件在列表里，而引擎只读第一个 —— 用户看到 3 个文件却只出 1 轨，
+   * 且毫无提示。这与「多轨静默吞文件」是同一类缺陷。
+   */
+  const trimFilesToCapacity = useCallback((): number => {
+    if (files.length <= maxFiles) return 0
+    setFilesAndResetOutput(files.slice(0, maxFiles))
+    return files.length - maxFiles
+  }, [files, maxFiles, setFilesAndResetOutput])
 
   const cancel = useCallback(() => void task.cancel(), [task])
   const resetAll = useCallback(() => {
@@ -157,6 +196,7 @@ export function useWorkspace(config: WorkspaceConfig) {
     outputPath,
     needsTwoSlots,
     isBasicMulti,
+    maxFiles,
     // 状态
     task,
     loadError,
@@ -167,6 +207,7 @@ export function useWorkspace(config: WorkspaceConfig) {
     setMode,
     setParams,
     setFiles: setFilesAndResetOutput,
+    trimFilesToCapacity,
     chooseOutput,
     submit,
     cancel,

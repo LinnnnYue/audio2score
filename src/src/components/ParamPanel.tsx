@@ -25,6 +25,10 @@ const DEFAULT_N_PEAKS: Record<TranscribeMode, number> = {
   accompaniment: 6,
   vocals: 2,
   basic: 5,
+  // 单轨·人声旋律走 pYIN 单音高追踪，n_peaks 不参与运算；
+  // 这里登记 2 只是为了让「此模式推荐 N」有据可依，与 vocals 对齐。
+  basic_vocals: 2,
+  basic_accompaniment: 6,
   basic_multi: 6,
   pre_separated: 5,
 }

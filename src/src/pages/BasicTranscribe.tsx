@@ -1,8 +1,11 @@
 /**
- * BasicTranscribe.tsx — 功能页 2「基本扒谱」
+ * BasicTranscribe.tsx — 功能页 2「音频直扒」
  *
- * 需求：拖入音频 → 单音轨 or 多音轨；以及导入用户自己已分离好的音频
- *      （选两个文件：人声 + 伴奏），直接扒谱不再分离。
+ * 需求：把**手头已有的音频**直接扒成 MIDI，不调动 Demucs。
+ * 三条输入形态——
+ *   单轨（人声旋律 / 伴奏多音高）：拖 1 个音频，出 1 轨；
+ *   多轨：一次拖多个文件，逐轨各出 1 轨；
+ *   已分离直入：自己已分好人声 + 伴奏，放两个槽位，跳过分离。
  *
  * 两槽模式（pre_separated）用 armed 机制解决 webview 拖放事件全局的问题：
  * 主槽恒armed，副槽点击后再armed；两个槽都可点击选择文件。
@@ -19,10 +22,16 @@ import { ParamPanel } from '../components/ParamPanel'
 import { ProgressPanel } from '../components/ProgressPanel'
 import { ResultCard } from '../components/ResultCard'
 import { Section } from '../components/Section'
+import type { ModeInfo } from '../lib/types'
 import { previewOutput, separationLabel, useWorkspace } from '../lib/useWorkspace'
 
 export function BasicTranscribe() {
-  const ws = useWorkspace({ page: 2, defaultMode: 'basic_multi', twoSlotModes: ['pre_separated'] })
+  // 默认落在「单轨直扒（人声旋律）」——主上的主场景是把分好的人声出成单轨小提琴谱。
+  const ws = useWorkspace({
+    page: 2,
+    defaultMode: 'basic_vocals',
+    twoSlotModes: ['pre_separated'],
+  })
   const { task, activeModeInfo } = ws
 
   /** 双槽模式下，当前接收点击/拖放的槽位：0=主 1=副 */
@@ -33,9 +42,15 @@ export function BasicTranscribe() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** 切模式时重置 armed，避免两槽状态残留 */
+  /**
+   * 切模式时重置 armed，并把文件数裁到新模式的容量。
+   * 不裁的话「先选多轨直扒丢 3 个文件、再切单轨模式」会留下 3 个文件，
+   * 而引擎只读第一个 —— 用户看到 3 个文件却只出 1 轨，且毫无提示。
+   */
   useEffect(() => {
     setArmedSlot(0)
+    ws.trimFilesToCapacity()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.mode])
 
   const running = task.isRunning
@@ -72,8 +87,10 @@ export function BasicTranscribe() {
               aside={
                 twoSlot ? (
                   <span className="text-[10.5px] text-ink-faint">人声 + 伴奏，跳过分离</span>
+                ) : ws.isBasicMulti ? (
+                  <span className="text-[10.5px] text-ink-faint">可放多个文件，每个一轨</span>
                 ) : (
-                  <span className="text-[10.5px] text-ink-faint">共 {ws.modes.length} 项模式</span>
+                  <span className="text-[10.5px] text-ink-faint">放 1 个音频</span>
                 )
               }
             >
@@ -173,10 +190,16 @@ export function BasicTranscribe() {
                       onReset={ws.resetAll}
                     />
                   ) : running || task.status === 'error' ? (
-                    <ProgressPanel task={task} onCancel={ws.cancel} stageLabels={ws.stageLabels} />
+                    <ProgressPanel
+                      task={task}
+                      onCancel={ws.cancel}
+                      stageLabels={ws.stageLabels}
+                      inputPath={ws.files[0]?.path ?? null}
+                      modeLabel={ws.activeModeInfo?.label ?? null}
+                    />
                   ) : (
                     <IdlePanel
-                      modeLabel={ws.activeModeInfo?.label ?? null}
+                      mode={ws.activeModeInfo}
                       needsTwo={twoSlot}
                       hasVocal={Boolean(vocal)}
                       hasAccomp={Boolean(accomp)}
@@ -251,12 +274,12 @@ function SlotLabel({
 }
 
 function IdlePanel({
-  modeLabel,
+  mode,
   needsTwo,
   hasVocal,
   hasAccomp,
 }: {
-  modeLabel: string | null
+  mode: ModeInfo | null
   needsTwo: boolean
   hasVocal: boolean
   hasAccomp: boolean
@@ -269,9 +292,9 @@ function IdlePanel({
       <div>
         <p className="text-[13px] font-medium text-ink">待命</p>
         <p className="mt-1 text-[11.5px] leading-relaxed text-ink-faint">
-          {modeLabel ? (
+          {mode ? (
             <>
-              当前模式「<span className="text-ink-dim">{modeLabel}</span>」
+              当前模式「<span className="text-ink-dim">{mode.label}</span>」
             </>
           ) : (
             '尚未选择模式'
@@ -284,7 +307,8 @@ function IdlePanel({
               <span className={hasAccomp ? 'text-ok' : 'text-warn'}>{hasAccomp ? '✓' : '（待放入）'}</span>。
             </>
           ) : (
-            '，无需分离，直接对整段音频做多音高识别。'
+            /* 说明文案由引擎下发（ModeInfo.hint），前端不硬编码模式语义 */
+            `，${mode?.hint ?? '放入音频后即可开始扒谱。'}`
           )}
         </p>
       </div>

@@ -18,7 +18,11 @@ CASES = [
     ("accompaniment", WAV, []),
     ("vocals", WAV, []),
     ("basic", WAV, []),
+    ("basic_vocals", WAV, []),
+    ("basic_accompaniment", WAV, []),
     ("basic_multi", WAV, []),
+    # 多文件逐轨：三轨各占 1/3 进度轴，最容易出现「每轨各自从 0 起算」的倒退
+    ("basic_multi", WAV, [WAV, WAV]),
     ("pre_separated", PRESEP_V, [PRESEP_A]),
 ]
 
@@ -65,8 +69,9 @@ for mode, inp, extras in CASES:
             print(f"  [ERROR] {obj.get('message')}")
 
     status = "OK " if (bad == 0 and result_ok and final >= 0.999) else "BAD"
+    label = f"{mode}+{len(extras)}" if extras else mode
     print(
-        f"{status} {mode:15s} 事件 {n:3d} | 倒退 {bad} | 终值 {final:.3f} | 结果 {'有' if result_ok else '无'}"
+        f"{status} {label:21s} 事件 {n:3d} | 倒退 {bad} | 终值 {final:.3f} | 结果 {'有' if result_ok else '无'}"
     )
     total_bad += bad
 

@@ -54,6 +54,10 @@ function stub<T>(name: string, value: T): Promise<T> {
   return Promise.resolve(value)
 }
 
+/**
+ * 浏览器预览用的桩数据，**必须与 engine/pipeline.describe_modes() 逐字一致**。
+ * 真值永远来自引擎；此处只是无 Tauri 运行时的降级副本，改引擎时同步改这里。
+ */
 const STUB_MODES: ModesPayload = {
   modes: [
     {
@@ -61,6 +65,7 @@ const STUB_MODES: ModesPayload = {
       page: 1,
       label: '全自动扒谱（两轨）',
       description: '分离人声与伴奏，分别扒谱，导出双轨 MIDI',
+      hint: '先分离再扒：伴奏走多音高，人声走单旋律，一次拿到两条轨。',
       separates: true,
       tracks: 2,
       roles: ['vocals', 'accompaniment'],
@@ -70,6 +75,7 @@ const STUB_MODES: ModesPayload = {
       page: 1,
       label: '只扒伴奏',
       description: '分离后只扒伴奏轨，适合只要伴奏旋律',
+      hint: '先分离再扒：只保留伴奏一轨，人声部分不输出。',
       separates: true,
       tracks: 1,
       roles: ['accompaniment'],
@@ -79,6 +85,7 @@ const STUB_MODES: ModesPayload = {
       page: 1,
       label: '只扒人声旋律',
       description: '分离后只扒人声旋律，单音轨',
+      hint: '先分离再扒：只保留人声旋律一轨，适合翻唱或独奏参考。',
       separates: true,
       tracks: 1,
       roles: ['vocals'],
@@ -86,19 +93,41 @@ const STUB_MODES: ModesPayload = {
     {
       mode: 'basic',
       page: 1,
-      label: '基本扒谱（乐器 / 单音轨）',
+      label: '整段直扒（乐器 · 不分离）',
       description: '不分离，直接对整段音频做多音高识别',
+      hint: '不分离，直接对整段音频做多音高识别；适合纯器乐音频。',
       separates: false,
       tracks: 1,
       roles: ['instrument'],
     },
     {
-      mode: 'basic_multi',
+      mode: 'basic_vocals',
       page: 2,
-      label: '基本扒谱（多音轨）',
-      description: '适合已有多轨素材，逐轨扒谱',
+      label: '单轨直扒（人声旋律）',
+      description: '不分离，对整段音频追一条旋律线，输出单轨',
+      hint: '不分离，直接提取单条旋律线，输出 1 轨。适合已分好的人声，或小提琴等单声部乐器独奏录音。',
       separates: false,
       tracks: 1,
+      roles: ['vocals'],
+    },
+    {
+      mode: 'basic_accompaniment',
+      page: 2,
+      label: '单轨直扒（伴奏多音高）',
+      description: '不分离，对整段音频做多音高识别，输出单轨',
+      hint: '不分离，直接做多音高识别，输出 1 轨。适合伴奏、钢琴、吉他等复音乐器，方便改成别的乐器演奏。',
+      separates: false,
+      tracks: 1,
+      roles: ['accompaniment'],
+    },
+    {
+      mode: 'basic_multi',
+      page: 2,
+      label: '多轨直扒（逐轨扒谱）',
+      description: '不分离，每个文件输出一轨，适合已分好轨的素材',
+      hint: '不分离，每个文件各输出 1 轨；适合手上已经分好轨的多轨素材。',
+      separates: false,
+      tracks: 0,
       roles: ['instrument'],
     },
     {
@@ -106,6 +135,7 @@ const STUB_MODES: ModesPayload = {
       page: 2,
       label: '已分离音频直入',
       description: '导入你已分离好的人声 + 伴奏，跳过分离步骤',
+      hint: '你已分好人声与伴奏，放进两个槽位即可，跳过分离直接扒。',
       separates: false,
       tracks: 2,
       roles: ['vocals', 'accompaniment'],
@@ -288,6 +318,13 @@ export interface InstallTierInfo {
   cannot: string[]
   /** 磁盘需求（MB），用于安装前提示 */
   diskMB: number
+  /**
+   * 该档位是否依赖 PyTorch（GPU 版）。
+   *
+   * 依赖 torch 的档位在 Python 版本不兼容时必然安装失败，
+   * UI 据此决定是否显示 pythonCompat 警告。
+   */
+  needsTorch: boolean
 }
 
 export interface MirrorInfo {
@@ -311,6 +348,28 @@ export interface EngineStatus {
   defaultMirror: string
   /** 已装但缺失的能力（如已装基础档则含 "demucs"），用于给增量升级入口 */
   missing: string[]
+  /**
+   * 本机 Python 是否满足 PyTorch（GPU 版）要求（需 3.10 – 3.13）。
+   *
+   * 为什么要在选择页就拿到：torch cu124 的 wheel 只到 cp313。
+   * 若本机只有 3.14，完整档必失败，而报错是 pip 的
+   * 「Could not find a version ... (from versions: none)」——
+   * 与「镜像不可用」逐字相同，用户会误判成网络问题而反复换源。
+   * 前置告知，用户直接改选基础档即可。
+   */
+  pythonCompat?: { ok: boolean; cmd: string; detail: string }
+  /**
+   * 应用是否自带了独立的 Python 运行时（随包分发，约 45MB）。
+   *
+   * 为 true 时，用户**无需自备任何 Python**，也不必装任何前置环境——
+   * 点一下「安装」就能跑完。为 false 时才会回退到用户机器上的系统 Python，
+   * 那时「本机没有 Python 3.9+」才会构成真正的阻碍。
+   *
+   * 引导页据此把这条最容易劝退小白的门槛，换成一句安心的说明。
+   */
+  runtimeBundled?: boolean
+  /** 实际用于创建引擎环境的解释器绝对路径（诊断用，也用来在界面上明示来源） */
+  basePython?: string
 }
 
 export interface InstallProgressEvent {
@@ -349,6 +408,7 @@ export async function checkEngine(): Promise<EngineStatus> {
       engineDir: '', ready: true, reason: '', python: null,
       basic: true, demucs: true, cuda: false, torchVersion: '', mcp: false,
       tiers: [], mirrors: [], defaultMirror: 'cn', missing: [],
+      pythonCompat: { ok: true, cmd: '', detail: '' },
     }
   }
   return invoke<EngineStatus>('check_engine')
@@ -372,6 +432,18 @@ export async function installEngine(
     // null = 用后端默认位置（%LOCALAPPDATA%/bapu/engine）
     targetDir: targetDir && targetDir.trim() ? targetDir : null,
   })
+}
+
+/**
+ * 把已安装的引擎迁移到新位置。
+ *
+ * 不重装：完整档 5.4GB，用户只是想把引擎从 C 盘挪走，不该付重下 2.5GB 的代价。
+ * 进度与结果**复用安装的同一套事件通道**（install://progress / log / done），
+ * 所以这里不需要新的订阅接口。
+ */
+export async function migrateEngine(newDir: string): Promise<StartResult> {
+  if (!inTauri()) throw new Error('非桌面环境无法迁移引擎')
+  return invoke<StartResult>('migrate_engine', { newDir })
 }
 
 /**
@@ -412,4 +484,162 @@ export async function onInstallDone(
 ): Promise<UnlistenFn> {
   if (!inTauri()) return () => {}
   return listen<InstallDoneEvent>('install://done', (e) => cb(e.payload))
+}
+
+/* ================================================================== *
+ * 新手指引：CLI / MCP 接入信息
+ *
+ * 路径为什么必须由后端给：引擎装在哪块盘、哪个目录是用户在引导页
+ * 自己选的（完整档 5.4GB，C 盘紧张就得换盘），前端无从知晓。
+ * 而 MCP 客户端配置里必须写绝对路径——所以这份 JSON 只能现算。
+ * ================================================================== */
+
+export interface IntegrationInfo {
+  /** 引擎是否已就绪。false 时其余字段为空，应引导用户去安装 */
+  ready: boolean
+  /** 引擎源码目录（含 cli.py / mcp_server.py） */
+  engineDir: string
+  /** 引擎解释器绝对路径 */
+  python: string
+  /** 能力自检命令，可整行粘贴 */
+  cliCaps: string
+  /** 扒谱示例命令 */
+  cliExample: string
+  /** 可直接粘进 MCP 客户端配置的完整 JSON */
+  mcpConfig: string
+  /** 引擎档位是否含 mcp 依赖（基础档不含） */
+  mcpReady: boolean
+  /** 未就绪时的说明 */
+  reason: string
+}
+
+const STUB_INTEGRATION: IntegrationInfo = {
+  ready: false,
+  engineDir: '',
+  python: '',
+  cliCaps: '',
+  cliExample: '',
+  mcpConfig: '',
+  mcpReady: false,
+  reason: '浏览器预览模式，无本地引擎',
+}
+
+export async function getIntegrationInfo(): Promise<IntegrationInfo> {
+  if (!inTauri()) return STUB_INTEGRATION
+  return invoke<IntegrationInfo>('get_integration_info')
+}
+
+/**
+ * 把 MCP 配置导出成 .json 文件，返回写入的绝对路径。
+ * 内容由后端现算，前端只能决定「存到哪」。
+ */
+export async function exportMcpConfig(target: string): Promise<string> {
+  if (!inTauri()) throw new Error('非桌面环境无法导出')
+  return invoke<string>('export_mcp_config', { target })
+}
+
+/** 选一个保存 .json 的位置。取消返回 null。 */
+export async function pickJsonSavePath(defaultName: string): Promise<string | null> {
+  if (!inTauri()) return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  return await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'JSON 配置', extensions: ['json'] }],
+  })
+}
+
+/* ══════════════════════════════════════════════════════════
+ * 问题反馈：一键诊断报告
+ *
+ * 设计意图（主上原话）：「做一个可以复制反馈 debug 报错日志结果或文件的按钮」，
+ * 且要「更无感小白化」—— 小白用户不知道日志在哪，也不该知道。
+ * 故由 Rust 侧把系统/引擎/Python 编码等事实一次收集齐，前端只负责
+ * 「一键拿到文本 → 复制 / 落盘 / 打开文件夹」。
+ * ══════════════════════════════════════════════════════════ */
+
+/**
+ * 诊断报告的「现场上下文」。
+ *
+ * 刻意由前端补料而非让 Rust 去猜：报错现场只有界面知道 ——
+ * 用户拖的是哪个文件、界面上已经显示了哪些日志行。
+ */
+export interface DiagnosticContext {
+  /** 界面上「运行日志」里的那些行（时间正序） */
+  logs: string[]
+  errorMessage?: string | null
+  errorDetail?: string | null
+  inputPath?: string | null
+  mode?: string | null
+  /** 由前端生成：Rust 侧没有日期格式化能力，不为它引入 chrono */
+  generatedAt?: string | null
+  appVersion?: string | null
+}
+
+/** 生成诊断报告文本（不落盘）。可先拿来做预览或直接复制。 */
+export async function buildDiagnosticReport(
+  context: DiagnosticContext,
+): Promise<string> {
+  if (!inTauri()) throw new Error('非桌面环境无法生成诊断报告')
+  return invoke<string>('build_diagnostic_report', { context })
+}
+
+/**
+ * 写入诊断报告文件。
+ *
+ * 后端会加 UTF-8 BOM —— 否则 Windows 记事本按 ANSI 解读，中文全乱码，
+ * 而这份文件正是要拿给别人看的。
+ */
+export async function saveDiagnosticReport(
+  target: string,
+  content: string,
+): Promise<string> {
+  if (!inTauri()) throw new Error('非桌面环境无法保存')
+  return invoke<string>('save_diagnostic_report', { target, content })
+}
+
+/** 选一个保存 .txt 的位置。取消返回 null。 */
+export async function pickTextSavePath(defaultName: string): Promise<string | null> {
+  if (!inTauri()) return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  return await save({
+    defaultPath: defaultName,
+    filters: [{ name: '文本文件', extensions: ['txt'] }],
+  })
+}
+
+/* ══════════════════════════════════════════════════════════
+ * 诊断报告的上报通道
+ *
+ * 主上原话：「如果能更无感小白化 点提交 bug 问题日志直接给我们的项目就好了」。
+ *
+ * ## 为什么不能在前端直接发
+ * tauri.conf.json 的 CSP 是 `default-src 'self'`，**没有 connect-src**，
+ * 前端 fetch 外部端点会被 WebView 拦下。所以上报必须走 Rust 侧 ——
+ * 那里不受 CSP 约束。
+ *
+ * ## 为什么端点与凭证不在这里
+ * 凭证只落在 Rust 侧常量里。前端代码可被 WebView 开发者工具直接查看，
+ * 凭证不该出现在那儿。这里只负责「把报告交出去」这一个动作。
+ *
+ * ## 未接入时的行为
+ * Rust 侧 token 为空 → 返回 unconfigured → 界面自动降级为「复制到剪贴板」。
+ * 小白不会被卡在一个不存在的网络上。
+ * ══════════════════════════════════════════════════════════ */
+
+export type SubmitOutcome =
+  | { status: 'sent' }
+  | { status: 'unconfigured' }
+  | { status: 'failed'; reason: string }
+
+/** 把报告交给项目方。未接入端点时返回 unconfigured，由调用方降级处理。 */
+export async function submitDiagnosticReport(report: string): Promise<SubmitOutcome> {
+  if (!inTauri()) return { status: 'unconfigured' }
+  try {
+    await invoke<void>('submit_diagnostic_report', { report })
+    return { status: 'sent' }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('unconfigured')) return { status: 'unconfigured' }
+    return { status: 'failed', reason: msg }
+  }
 }

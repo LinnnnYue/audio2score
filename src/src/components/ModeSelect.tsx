@@ -139,7 +139,7 @@ export function ModeSelect({ modes, value, onChange, disabled }: Props) {
           </span>
           {selected && (
             <span className="block truncate text-[10.5px] text-ink-faint">
-              {selected.tracks} 轨 · {selected.separates ? '需分离' : '不分离'}
+              {tracksText(selected.tracks)} · {selected.separates ? '需分离' : '不分离'}
             </span>
           )}
         </span>
@@ -216,15 +216,32 @@ function ModeIcon({ separates }: { separates: boolean }) {
   )
 }
 
+/**
+ * 轨数文案。`tracks === 0` 是引擎约定的「随输入文件数变化」（多轨直扒），
+ * 按字面显示成「0 轨」会让人以为模式是坏的。
+ *
+ * 刻意不导出：本文件的 Fast Refresh 要求「只导出组件」，
+ * 多一个非组件导出就会破坏热更新（oxlint react/only-export-components）。
+ */
+function tracksText(tracks: number): string {
+  return tracks > 0 ? `${tracks} 轨` : '多轨'
+}
+
 /** 选中模式的说明条（描述 + 产出轨数），贴在选择器下方 */
 export function ModeNote({ mode }: { mode: ModeInfo | null }) {
   if (!mode) return null
   return (
     <div className="flex animate-rise-in items-start gap-2 rounded-[var(--r-sm)] bg-accent-soft px-2.5 py-2">
       <p className="flex-1 text-[11.5px] leading-relaxed text-ink-dim">{mode.description}</p>
-      <Tooltip content={`输出 ${mode.tracks} 条MIDI 音轨`}>
+      <Tooltip
+        content={
+          mode.tracks > 0
+            ? `输出 ${mode.tracks} 条 MIDI 音轨`
+            : '轨数随放入的文件数变化，每个文件 1 轨'
+        }
+      >
         <span className="num mt-[1px] shrink-0 text-[10.5px] font-medium text-accent">
-          {mode.tracks} 轨
+          {tracksText(mode.tracks)}
         </span>
       </Tooltip>
     </div>

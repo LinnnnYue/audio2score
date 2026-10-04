@@ -8,7 +8,7 @@
  * 拖拽高亮态用 data-dragging 属性驱动 CSS（见 index.css .dropzone），
  * 不用 React state 反复重渲染。
  *
- * multiple 模式（基本扒谱多轨 / 已分离直入）可接收多个文件，
+ * multiple 模式（多轨直扒 / 已分离直入）可接收多个文件，
  * 超出配额时给出明确提示而非静默丢弃。
  */
 

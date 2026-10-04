@@ -10,24 +10,33 @@
 /** 引擎五阶段（pipeline.STAGES）。UI 上呈现为四个锚点，prepare+separate 合并显示。 */
 export type Stage = 'prepare' | 'separate' | 'spectrum' | 'track' | 'export'
 
-/** 六条产品路径（pipeline.Mode） */
+/** 八条产品路径（pipeline.Mode） */
 export type TranscribeMode =
   | 'full_auto'
   | 'accompaniment'
   | 'vocals'
   | 'basic'
+  | 'basic_vocals'
+  | 'basic_accompaniment'
   | 'basic_multi'
   | 'pre_separated'
 
 /** engine/pipeline.describe_modes() 单项。前端模式列表以此为单一真源。 */
 export interface ModeInfo {
   mode: TranscribeMode
-  /** 归属功能页：1 = 歌曲扒谱，2 = 基本扒谱 */
+  /** 归属功能页：1 = 歌曲扒谱，2 = 音频直扒 */
   page: 1 | 2
   label: string
   description: string
+  /** 待命面板的说明文案。不硬编码在前端，由引擎下发 */
+  hint?: string
   /** 是否会调用 Demucs 做分离（决定是否显示降级警告） */
   separates: boolean
+  /**
+   * 输出 MIDI 轨数。
+   * `basic_multi` 为 0，含义是「轨数随输入文件数变化」，UI 应显示「多轨」，
+   * 不要显示成「0 轨」。
+   */
   tracks: number
   roles: string[]
 }

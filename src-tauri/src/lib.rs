@@ -5,8 +5,10 @@
 pub mod engine;
 
 use engine::{
-    cancel_transcribe, check_engine, get_env_info, get_modes, install_engine,
-    open_with_musescore, probe_audio, reveal_in_folder, start_transcribe,
+    build_diagnostic_report, cancel_transcribe, check_engine, export_mcp_config, get_env_info,
+    get_integration_info, get_modes, install_engine, migrate_engine, open_with_musescore,
+    probe_audio, reveal_in_folder, save_diagnostic_report, start_transcribe,
+    submit_diagnostic_report,
 };
 
 /// 构建并运行 Tauri 应用。由 `main.rs` 调用。
@@ -26,6 +28,16 @@ pub fn run() {
             // 首启引导安装
             check_engine,
             install_engine,
+            // 引擎目录迁移（设置页）
+            migrate_engine,
+            // 新手指引：CLI / MCP 接入信息（路径按本机实际位置动态生成）
+            get_integration_info,
+            export_mcp_config,
+            // 问题反馈：一键诊断报告（小白不必知道日志在哪）
+            build_diagnostic_report,
+            save_diagnostic_report,
+            // 一键直报项目方。未配置凭证时返回 unconfigured，界面自动降级为复制
+            submit_diagnostic_report,
         ])
         .setup(|_app| {
             use tauri::Manager;

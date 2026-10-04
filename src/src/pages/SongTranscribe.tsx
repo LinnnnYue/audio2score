@@ -109,9 +109,21 @@ export function SongTranscribe() {
                       onReset={ws.resetAll}
                     />
                   ) : task.status === 'error' ? (
-                    <ProgressPanel task={task} onCancel={ws.cancel} stageLabels={ws.stageLabels} />
+                    <ProgressPanel
+                      task={task}
+                      onCancel={ws.cancel}
+                      stageLabels={ws.stageLabels}
+                      inputPath={ws.files[0]?.path ?? null}
+                      modeLabel={ws.activeModeInfo?.label ?? null}
+                    />
                   ) : running ? (
-                    <ProgressPanel task={task} onCancel={ws.cancel} stageLabels={ws.stageLabels} />
+                    <ProgressPanel
+                      task={task}
+                      onCancel={ws.cancel}
+                      stageLabels={ws.stageLabels}
+                      inputPath={ws.files[0]?.path ?? null}
+                      modeLabel={ws.activeModeInfo?.label ?? null}
+                    />
                   ) : (
                     <IdlePanel
                       modeLabel={ws.activeModeInfo?.label ?? null}

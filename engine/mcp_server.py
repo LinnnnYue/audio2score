@@ -69,13 +69,20 @@ def _import_server():
         return FastMCP, "fastmcp"
     except ImportError as e:
         raise ImportError(
-            "未安装 mcp SDK。请执行：\n"
-            "  pip install mcp\n"
-            "或用 engine/.venv/Scripts/python.exe -m pip install mcp"
+            "当前引擎档位不含 MCP 支持。\n"
+            "请在应用引导页选择「完整 + MCP」档重新安装；\n"
+            "或手动执行：<引擎目录>/.venv/Scripts/python.exe -m pip install \"mcp>=2.0\""
         ) from e
 
 
-ServerClass, _API_STYLE = _import_server()
+# 导入失败不能把 Python traceback 甩给用户 ——
+# 小白看到一堆 File "...", line ... 只会以为程序坏了。
+# MCP 客户端（Claude Desktop 等）也是按 stderr 展示的，故给一句人话 + 退出码 3（环境未就绪）。
+try:
+    ServerClass, _API_STYLE = _import_server()
+except ImportError as _e:
+    sys.stderr.write("\n[扒谱助手 · MCP] {}\n\n".format(_e))
+    raise SystemExit(3)
 
 mcp = ServerClass("bapu")
 
@@ -225,13 +232,16 @@ def _run_transcribe(
     title="音频扒谱",
     description=(
         "把音频转成 MIDI 乐谱（MuseScore 可直接打开）。\n\n"
-        "六种模式：\n"
-        "  full_auto      全自动（分离人声+伴奏，导出双轨）\n"
-        "  accompaniment  只扒伴奏\n"
-        "  vocals         只扒人声旋律\n"
-        "  basic          基本扒谱（不分离，默认）\n"
-        "  basic_multi    基本扒谱（多音轨）\n"
-        "  pre_separated  已分离音频直入（需同时传 extra_inputs）\n\n"
+        "八种模式：\n"
+        "  full_auto            全自动（分离人声+伴奏，导出双轨）\n"
+        "  accompaniment        只扒伴奏\n"
+        "  vocals               只扒人声旋律\n"
+        "  basic                整段直扒（不分离，默认）\n"
+        "  basic_vocals         单轨直扒·人声旋律（不分离，输出 1 轨；\n"
+        "                       已分好的人声走这条，适合小提琴等单声部乐器演奏）\n"
+        "  basic_accompaniment  单轨直扒·伴奏多音高（不分离，输出 1 轨）\n"
+        "  basic_multi          多轨直扒（不分离，每个文件 1 轨）\n"
+        "  pre_separated        已分离音频直入（需同时传 extra_inputs）\n\n"
         "支持格式：wav/mp3/flac/m4a/aac/ogg/opus/wma/aiff/wv 等。\n"
         "分离类模式需 Demucs，首次运行会下载模型权重，3 分钟歌曲约 20-60 秒。"
     ),
@@ -282,7 +292,10 @@ def list_modes_tool() -> dict[str, Any]:
                 "label": m["label"],
                 "description": m["description"],
                 "needsSeparation": m["separates"],
-                "trackCount": m["tracks"],
+                # tracks=0 表示轨数随输入文件数变化（basic_multi），
+                # 别把它当成「0 轨」传给外部助手。
+                "trackCount": m["tracks"] if m["tracks"] else None,
+                "trackCountNote": None if m["tracks"] else "随输入文件数变化（每个文件 1 轨）",
                 "page": m["page"],
             }
             for m in describe_modes()

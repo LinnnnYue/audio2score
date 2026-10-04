@@ -1,9 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "扒谱助手",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.musicxml.scribe",
   "build": {
+    "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../src/dist"
   },
@@ -40,11 +41,13 @@
     "resources": {
       "../engine/*.py": "engine",
       "../engine/tools/*.py": "engine/tools",
+      "runtime": "runtime",
       "../third_party/AutoTranscriber/AutoTranscriber/*.py": "third_party/AutoTranscriber/AutoTranscriber"
     },
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "./installer-hooks.nsh"
       }
     }
   }

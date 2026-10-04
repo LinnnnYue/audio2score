@@ -186,17 +186,28 @@ export const THEME_LIST: ThemeMeta[] = [
   },
 ]
 
-const STORAGE_KEY = 'bapu.theme'
+/**
+ * 存储 key。**带版本号**，改默认主题时必须同时升版本。
+ *
+ * 原因：loadTheme 优先读 localStorage，旧值会**盖过**新默认值 ——
+ * 只把 DEFAULT_THEME 改成 frost，在主上这种已存过 'abyss' 的机器上
+ * 完全不生效（表现为「改了默认值却没变化」）。
+ * 升版本 = 让旧偏好自然失效，新默认值得以落地；
+ * 用户此后主动切的主题照常持久化，不受影响。
+ */
+const STORAGE_KEY = 'bapu.theme.v2'
 
 /**
- * 默认主题。
+ * 默认主题：霜蓝玻璃（frost）。
  *
- * 变更记录（2026-10-04）：原为 `frost`，主上亲验后选定为 `abyss`（深海声谱）——
- * 「深海声谱好看诶」。理由与该方向的设计契合：频谱可视化作主角，界面退为
- * 半透明浮层，最贴合「把声音变成谱」这件工具的本性。
- * 其余三向仍完整保留于 THEME_SWITCHER，主上随时可切。
+ * 变更记录：
+ * - 2026-10-04 初版为 frost。
+ * - 同期主上试看「深海声谱（abyss）」后暂定为 abyss。
+ * - 2026-10-04 主上重新拍板：「霜蓝玻璃可以作为默认皮肤」。
+ *   雾白玻璃 + 冰川蓝的观感更清爽，作为首启第一印象更稳；
+ *   其余三向完整保留，切换器里随时可选。
  */
-export const DEFAULT_THEME: ThemeId = 'abyss'
+export const DEFAULT_THEME: ThemeId = 'frost'
 
 /** 从 localStorage 恢复主题；无效值回退默认主题 */
 export function loadTheme(): ThemeId {

@@ -29,18 +29,26 @@ bapu *.mp3 -m basic
 
 # 已分离好的音频直接扒（不重新分离）
 bapu 人声.wav -m pre_separated --extra 伴奏.wav
+
+# 自己分好的人声 → 单轨旋律谱（小提琴等单声部乐器演奏用）
+bapu 人声.wav -m basic_vocals -o 旋律.mid
 ```
 
-### 六种模式
+### 八种模式
 
 | 模式 | 说明 | 需分离 |
 |---|---|---|
 | `full_auto` | 全自动，人声 + 伴奏双轨 | 是 |
 | `accompaniment` | 只扒伴奏 | 是 |
 | `vocals` | 只扒人声旋律 | 是 |
-| `basic` | 基本扒谱（乐器/单音轨），**默认** | 否 |
-| `basic_multi` | 基本扒谱（多音轨） | 否 |
+| `basic` | 整段直扒（乐器·不分离），**默认** | 否 |
+| `basic_vocals` | 单轨直扒（人声旋律·不分离），单旋律追踪 | 否 |
+| `basic_accompaniment` | 单轨直扒（伴奏多音高·不分离） | 否 |
+| `basic_multi` | 多轨直扒（每个文件一轨） | 否 |
 | `pre_separated` | 已分离音频直入（需 `--extra`） | 否 |
+
+> `basic_vocals` 与 `basic_accompaniment` 都输出**单轨**：前者走单旋律追踪
+> （人声、独奏小提琴等单声部），后者走多音高识别（伴奏、钢琴等复音乐器）。
 
 ### 常用参数
 

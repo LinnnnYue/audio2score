@@ -24,12 +24,14 @@
       - 结论：**0 条需要改上游**。20 条缺陷全部有适配层解法（见 03 报告 §9/§10）
       - 验收：结论明确写进 `03-upstream-api-contract.md` §9
 
-## P1 — 引擎层（Python，六条路径端到端可跑）
+## P1 — 引擎层（Python，八条路径端到端可跑）
+> v1.1 起由六条扩为八条：新增 `basic_vocals`（单轨·人声旋律）与
+> `basic_accompaniment`（单轨·伴奏多音高），供「已分好的音频直接出单轨」场景。
 
 - [~] `engine/bridge.py`：上游 API 适配 + 阶段进度上报（stdout 解析）+ 错误中文化
       - 验收：`python engine/bridge.py --probe` 打印上游能力自检表；异常路径返回中文错误码
-- [x] `engine/pipeline.py`：六条路径编排（双轨/伴奏/人声/基本单轨/单多轨/已分离直入）
-      - 验收：对 `test_audio/chord_progression.wav` 六条路径各产出非空 .mid
+- [x] `engine/pipeline.py`：八条路径编排（双轨/伴奏/人声/整段直扒/单轨人声/单轨伴奏/多轨/已分离直入）
+      - 验收：对 `test_audio/chord_progression.wav` 各路径产出非空 .mid
 - [x] 轨名与 program 映射（人声→Voice、伴奏→Piano），tempo 正确写入
       - 验收：`pretty_midi` 读回，轨名与 program 与预期一致
 - [x] 已分离音频直入路径（跳过 Demucs）
@@ -45,7 +47,7 @@
       - 验收：`cargo check` 零错；窗口无系统标题栏、圆角 + 弥散阴影、chrome 与内容无可见交界线
 - [ ] 功能页 1「歌曲扒谱」：大拖放区 + 模式下拉（四选项）+ 参数区（模式联动）
       - 验收：四模式各自显示对应参数；拖入后显示文件名与时长
-- [ ] 功能页 2「基本扒谱」：拖放 + 单轨/多轨选择
+- [ ] 功能页 2「音频直扒」：拖放 + 单轨（人声 / 伴奏）/ 多轨选择
 - [ ] 已分离音频导入入口（文件对选择）
       - 验收：可选 vocals + instrumental 两文件并跳过分离阶段
 - [ ] Tauri command 桥：调 sidecar、收阶段事件、取消子进程

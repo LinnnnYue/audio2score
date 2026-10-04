@@ -9,7 +9,7 @@
  *
  * 三档选择
  * --------
- *   基础 basic  ~200MB  1-2 min   基本扒谱，不含人声分离
+ *   基础 basic  ~200MB  1-2 min   音频直扒，不含人声分离
  *   完整 full   ~5.1GB  8-20 min  + GPU 版 torch 与 Demucs（推荐）
  *   +MCP  mcp   ~5.1GB  8-20 min  额外供 AI 助手调用
  *
@@ -82,8 +82,14 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
   const logRef = useRef<HTMLDivElement>(null)
 
   /* ── 首启检测 ── */
+  /**
+   * 注意：这里刻意**不**在开头 setPhase('checking')。
+   *   - 首次挂载：phase 初值本就是 'checking'，无需设置；
+   *   - 手动「重新检测」：由按钮自己先切到 'checking' 再调本函数。
+   * 效果是 effect 内不再出现同步 setState（React 会警告「级联渲染」），
+   * 行为完全不变。
+   */
   const probe = useCallback(async () => {
-    setPhase('checking')
     try {
       const s = await checkEngine()
       setStatus(s)
@@ -103,6 +109,10 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
   }, [onReady, intent])
 
   useEffect(() => {
+    // 静态检查在此为保守误报：probe() 内部所有 setState 都在
+    // await checkEngine() 之后，属异步更新，不会造成同步级联渲染；
+    // 首帧使用的 'checking' 是 useState 初值，压根不是 setState。
+    // oxlint-disable-next-line react/set-state-in-effect
     void probe()
   }, [probe])
 
@@ -127,12 +137,18 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
         setOutcome(e)
         setPhase('done')
       } else {
-        setError(
+        // 失败也必须说清楚「为什么」。
+        // 后端已经回传了 logTail（安装器最后一条日志）——它往往就是根因本身
+        // （pip 的 ERROR 行 / 磁盘不足提示 / 网络超时）。
+        // 初版把 logTail 直接丢掉，用户只看到一句「安装未完成」，等于没说。
+        const tail = typeof e.logTail === 'string' && e.logTail.trim() ? e.logTail.trim() : ''
+        const head =
           e.message ||
-            (e.outcomeMissing
-              ? '安装进程异常退出，没有返回结果。请重试或查看下方日志。'
-              : '安装失败。'),
-        )
+          (e.outcomeMissing
+            ? '安装进程异常退出，没有返回结果。请重试或查看下方日志。'
+            : '安装失败。')
+        setOutcome(e)
+        setError(tail ? `${head}\n\n— 安装器最后一条日志 —\n${tail}` : head)
         setPhase('failed')
       }
     }).then((f) => cleanups.push(f))
@@ -163,6 +179,8 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
 
   const abort = useCallback(async () => {
     if (taskId) await cancelInstall(taskId)
+    // 取消后回选择页（probe 自身不再负责切 phase，见上方注释）
+    setPhase('choosing')
     void probe()
   }, [taskId, probe])
 
@@ -182,6 +200,15 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
     cannot: t.cannot ?? [],
   }))
   const mirrors = status?.mirrors ?? []
+
+  /**
+   * 当前选中档位是否依赖 PyTorch。
+   *
+   * 优先用后端下发的 needsTorch —— 前端硬编码「非 basic 就需 torch」是
+   * 第二份真源，后端的档位定义一改就会失配（同类失配已在本项目发生过一次）。
+   * 仅在后端字段缺失（旧 bootstrap.py）时按 basic 例外兜底。
+   */
+  const needsTorch = tiers.find((t) => t.id === tier)?.needsTorch ?? tier !== 'basic'
 
   /** 已装但缺能力时，给出「加装」提示而非让用户整个重装 */
   const needsUpgrade = (status?.missing?.length ?? 0) > 0
@@ -284,6 +311,63 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                   首次运行时安装到本机，之后永久可用。
                 </p>
               </header>
+
+              {/* ── 内置运行时说明 ──
+                  应用自带一份独立的 Python（随包分发，约 45MB），
+                  与用户机器上有没有、装的是几版**完全无关**。
+
+                  为什么值得专门占一行：小白拿到这类工具的第一个疑问就是
+                  「我电脑没装 Python，能不能用」。在他点安装之前回答掉，
+                  比装完再解释有效得多——而且这行本身就是「零前置条件」的承诺。
+                  仅在内置运行时确实在位时显示，不留空话。 */}
+              {status?.runtimeBundled && (
+                <div
+                  className="mb-2.5 flex items-start gap-2.5 rounded-xl border px-3.5 py-3"
+                  style={{
+                    background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--accent) 26%, transparent)',
+                  }}
+                >
+                  <ShieldCheck
+                    size={14}
+                    strokeWidth={2.2}
+                    className="mt-px shrink-0 text-[var(--accent)]"
+                  />
+                  <span className="text-[12px] leading-relaxed text-[var(--text-dim)]">
+                    本应用已内置独立的 Python 运行时，
+                    <span className="text-[var(--text)]">无需事先安装 Python</span>
+                    ，也不需要管理员权限。直接开始安装即可。
+                  </span>
+                </div>
+              )}
+
+              {/* ── Python 版本预检警告 ──
+                  torch 的 GPU wheel 只发布到 cp313。若本机 Python 是 3.14，
+                  完整档必然失败，而且报错是 pip 的
+                  「Could not find a version ... (from versions: none)」——
+                  与「镜像不可用」逐字相同，用户会误以为换源能解决、白白反复折腾。
+                  所以在点击安装**之前**就把原因说清楚。
+
+                  只在该档位真的需要 torch 时提示：基础档不装 torch，
+                  本机 Python 是几都无所谓，提示了反而是噪音。 */}
+              {status?.pythonCompat && !status.pythonCompat.ok && needsTorch && (
+                <div
+                  className="mb-2.5 flex items-start gap-2.5 rounded-xl border px-3.5 py-3"
+                  style={{
+                    background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)',
+                  }}
+                >
+                  <AlertTriangle
+                    size={14}
+                    strokeWidth={2.3}
+                    className="mt-px shrink-0 text-[var(--warning)]"
+                  />
+                  <span className="text-[12px] leading-relaxed text-[var(--text-dim)]">
+                    {status.pythonCompat.detail}
+                  </span>
+                </div>
+              )}
 
               <div className="flex flex-col gap-2.5">
                 {tiers.map((t) => {
@@ -485,20 +569,21 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                   : `默认位置：${status?.engineDir ?? '程序数据目录'}`}
               </p>
 
-              {/* 引擎已可用时给一条退路。
+              {/* 无论引擎是否就绪，都留一条退路。
                   否则用户一旦从这里进来（如点「加装」），就再也回不去主界面 —— 
-                  主上实测反馈过「还无法返回」。 */}
-              {status?.ready && (
-                <button
-                  type="button"
-                  onClick={onReady}
-                  className="mt-3 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border px-3.5 text-[12.5px] transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
-                  style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
-                >
-                  <RotateCcw size={13} strokeWidth={2.2} />
-                  返回主界面
-                </button>
-              )}
+                  主上实测反馈过「还无法返回」。
+                  初版这里写着 status?.ready 条件，引擎没装成时按钮根本不出现，
+                  用户被「困死」在引导页；窗口又是无边框的，连关闭都要靠任务管理器。
+                  困死是比「功能暂不可用」严重得多的问题，故去掉条件。 */}
+              <button
+                type="button"
+                onClick={onReady}
+                className="mt-3 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border px-3.5 text-[12.5px] transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
+              >
+                <RotateCcw size={13} strokeWidth={2.2} />
+                返回主界面
+              </button>
             </>
           )}
 
@@ -579,10 +664,21 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                    style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
                 {error}
               </pre>
-              <div className="flex gap-2">
+              {/* 三条出路缺一不可。
+                  踩坑实录（主上实测「还无法返回」）：初版这里只有
+                  「重新检测 / 重新安装」，且返回主界面的按钮被 `status?.ready`
+                  挡住 —— 引擎没装成就永远走不掉，用户被**困死**在引导页。
+                  窗口又是无边框的，连关闭都要靠任务管理器。
+                  正解：失败时也一律给出退路。 */}
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void probe()}
+                  onClick={() => {
+                    // probe 不再自己切 phase（避免 effect 内同步 setState），
+                    // 手动重测时由这里先亮出「检测中」。
+                    setPhase('checking')
+                    void probe()
+                  }}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg border px-3.5 text-[12.5px] transition-[transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
                   style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
                 >
@@ -591,12 +687,21 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void startInstall()}
+                  onClick={() => setPhase('choosing')}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12.5px] font-medium transition-[transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
                   style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
                 >
                   <Sparkles size={13} strokeWidth={2.2} />
-                  重新安装
+                  换档位 / 换位置重来
+                </button>
+                <button
+                  type="button"
+                  onClick={onReady}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border px-3.5 text-[12.5px] transition-[transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
+                >
+                  <RotateCcw size={13} strokeWidth={2.2} />
+                  返回主界面
                 </button>
               </div>
             </div>

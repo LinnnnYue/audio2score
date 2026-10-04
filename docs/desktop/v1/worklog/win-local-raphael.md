@@ -12,6 +12,87 @@
 
 <!-- 新条目插在此线下方、旧条目之上；条目格式见 WORKLOG-PROTOCOL.md §4 -->
 
+## [P4-3]-raphael-20261005-0240 模型来源三跳治理 + 音频直扒页单轨化 — 2026-10-05 02:40 开始
+- **执行者**: raphael（WorkBuddy / 智慧之王，机器：<host>）
+- **目标**: 主上一句三合一指令，三件全做 ——
+  ① 分离模型下载准备多个镜像源，哪个通走哪个（修老公机器 HF 超时）
+  ② 功能页 2「基本扒谱」更名为更合适的名字
+  ③ 该页支持**单轨输出**（分离好的人声出单轨做小提琴演奏谱；伴奏单轨留给别的乐器；
+     **旧的别删**）
+- **进展**:
+  1. **自我纠正（我上一轮判错了）**：我原判「demucs 权重源是 `dl.fbaipublicfiles.com`，
+     与 HuggingFace 无关」——**错误**。真因：demucs **4.1.0**（PyPI 2026-07-11）起，
+     `pretrained.get_model()` 在 `repo is None` 时**先走 HuggingFace**（新增 `demucs/hf.py`），
+     模块级常量 `ROOT_URL`（第 19 行）只服务于 `except` 兜底分支。
+     线上报错逐字为 `HEAD huggingface.co/adefossez/HTDemucs/resolve/main/htdemucs.yaml`，
+     与 `hf.py:26-34` 的名映射（`htdemucs`→`HTDemucs`）完全吻合。
+     **教训：只读模块级常量会得出与真相反的结论，必须读函数体。**
+  2. **三跳模型加载器**（`separator._load_separator_model`）：
+     本地权重目录 → 官方直链 → HF 国内镜像（探活择优）。
+     **先探活（HEAD，4s）再动手**——直接连不通的源要等系统 TCP 超时（Windows 约 21s）
+     再叠 demucs 自身 5 次重试，用户看到的是「卡死数分钟」。
+     镜像实测：`hf-mirror.com` 307→200 ✓ / `aifasthub.com` 200 ✓ / `hf-api.gitee.com` 404 /
+     `mirror.sjtu.edu.cn/hugging-face` 404 / `hf.maizi.cc` DNS 失败 / `huggingface.co` 超时。
+     两个可用镜像均验证**能真正服务权重**（HTTP 206），不是只回个 200。
+  3. **版本治理**：`bootstrap.DEMUCS_PACKAGES` pin `demucs>=4.1,<4.2`，允许补丁号、挡住
+     可能改变下载行为的破坏性变更。
+  4. **功能页 2 更名**：「基本扒谱」→ **「音频直扒」**（与页 1「歌曲扒谱」四字对仗；
+     「直扒」= 不分离、直接识别）。同步 App tab / Settings 能力项 / Onboarding 指引与
+     模式表 / 引擎 `describe_modes` / CLI epilog / MCP 工具说明 / 各处注释。
+  5. **单轨化（本次核心）**：**新增**两条 `page:2` 模式，**不改任何旧模式** ——
+     - `basic_vocals`「单轨直扒（人声旋律）」：走 pYIN 单旋律。
+       人声与独奏小提琴都是单声部，CQT 多音高会把泛音误判成和声声部，
+       生成的谱面出现大量无法演奏的假声部。
+     - `basic_accompaniment`「单轨直扒（伴奏多音高）」：走 CQT，留给钢琴/吉他等复音乐器。
+     该页默认模式改为 `basic_vocals`（主上主场景：直播放伴奏、琴拉人声部分）。
+  6. **顺手修掉两处同类「静默吞文件」缺陷**（与本次页面改动同源）：
+     - `basic_multi`：初版只转写 `req.input_path`，而前端拖放区允许多选 6 个 →
+       后 5 个被**静默丢弃**。改为逐轨处理；多文件时前端传 `Instrument N` 轨名
+       （轨名必须纯 ASCII，`midi_post` 只允许 `\x20-\x7e`，故不能用中文文件名）。
+     - 模式切换不裁剪文件：多轨丢 3 个文件后切到单轨，多余文件留在列表里被引擎忽略。
+       新增 `useWorkspace.maxFiles` + `trimFilesToCapacity()`，容量**由模式统一决定**，
+       而不是只把 `max` 写在 DropZone 上。
+  7. 版本号 0.1.0 → **0.1.1**（仅 `tauri.conf.json` + `Cargo.toml` 两处），
+     理由：安装包文件名可辨识，避免老公那边装了旧版还以为没修。
+- **验证**:
+  - **新探针 `tests/manual/probe_single_track_modes.py`**：合成音频（标准库 wave，零依赖）
+    跑 4 用例，**全 PASS** ——`basic_vocals` 1 轨/Voice、`basic_accompaniment` 1 轨/Accompaniment、
+    `basic_multi` 3 文件出 3 轨（`Instrument 1..3`，14 音符）、`basic` 回归 1 轨；
+    四者 `separationMethod=None` 且进度阶段里**无 `separate`** → 确认未调动 Demucs
+  - **新探针 `tests/manual/probe_modes_frontend_sync.py`**：引擎 `describe_modes()` 与前端
+    降级副本 `STUB_MODES` 逐字段比对 → 8 字段 × 8 模式 PASS；并做**负向验证**
+    （故意改一个字 → 报 FAIL 且精确指出字段）。
+    此前这条「单一真源」只靠注释提醒「改引擎时同步改这里」——**注释不会执行**。
+  - `tests/test_progress_monotonic.py`：从 6 模式扩到 9 用例（含两个新模式与
+    `basic_multi` 三文件逐轨），**总倒退 0**
+  - 前端 `tsc -b` 0 错；`oxlint` **0 warnings 0 errors**（基线要求）
+  - `npm run tauri:build`（工作区根目录）→ `扒谱助手_0.1.1_x64-setup.exe` 13.39 MiB
+    （体积从早期 1.32MB 变为约 14MB 是 `src-tauri/runtime` 50MB 独立 CPython 入包所致，
+    与本次改动无关）
+- **决策与坑**:
+  - **坑（我的结论被现场反证）**：读常量得「与 HF 无关」，读函数体得「优先 HF」。
+    主上报的错就是我判「不可能」的那条路径。**先怀疑自己写的代码与自己的结论。**
+  - **坑（本地缓存掩盖故障）**：开发机 `~/.cache/huggingface/hub/models--adefossez--HTDemucs`
+    已存在，HF 分支本地命中即返回，**开发态从不复现**。探针用 `HF_HOME=<tmp>` 等效
+    「一台从没下过模型的机器」，才复现出现场（S1：167.4s、6 次 HF 请求；S2/S3：0 次）
+  - **镜像 JSON 与 `/simple/` 不同步**：清华 `/pypi/demucs/json` 陈旧仍报 4.0.1，
+    但 `/simple/demucs/` 已含 4.1.0 whl。判断「能不能装到某版本」要看 `/simple/` 页
+  - `tracks: 0` 作为「轨数随输入文件数变化」的约定值（`basic_multi`），
+    前端须显示「多轨」而非「0 轨」；MCP 侧同步给 `trackCount: null` + `trackCountNote`
+- **代码状态**: 仅本地未 push（仓库无 remote）
+- **状态**: ✅完成
+- **交付数据**:`npm run tauri:build`（工作区根）3m13s → release 编译 2m29s →
+  `扒谱助手_0.1.1_x64-setup.exe` **14,048,346 字节（13.40 MiB）**，
+  MD5 `030419ab14e0dc1b5cf0adbf58ed392f`；
+  以 `7z l` 对账：**1667 files**，`engine\*.py` 8 个 + `engine\tools\*.py` 4 个全在
+  （pipeline/bootstrap/cli/mcp_server/separator 时间戳均为本次，证明新代码入包），
+  `runtime\python\python.exe`（91648 B）在包内 → 无 Python 机器仍可首启引导安装。
+  已归档 `<DOCS>\扒谱助手\`，MD5 与构建产物逐字节一致；
+  0.1.0 版原地保留（版本号不同故无需 `.bak` 覆盖）。
+- **下一步**: 老公机器实测三件事 ——① 首次分离不再卡在 huggingface.co
+  （应走官方直链，或 hf-mirror/aifasthub）② 音频直扒页能看到「单轨直扒（人声旋律）」
+  且默认选中 ③ 出单轨 MIDI 可直接在 MuseScore 打开演奏
+
 ## [design]-raphael-20261004-1201 扒谱桌面应用立项 — 2026-10-04 12:01 开始
 - **执行者**: raphael（WorkBuddy 总监，机器：<host>）
 - **目标**: 完成立项解构 + 团队设计 + 需求/边界/计划三文档落地，进入 P0 引擎层

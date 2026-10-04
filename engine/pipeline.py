@@ -1,21 +1,34 @@
 """
-pipeline — 六条产品路径的编排层
+pipeline — 八条产品路径的编排层
 
 ## 定位
 本模块是 engine 的**唯一对外扒谱入口**。所有路径都在这里编排，
 绝不直接调 `third_party/AutoTranscriber/main.py`——那份 CLI 带着
 `has_demucs()` 门禁与 `sys.exit(1)`（缺陷 D-1/D-3），一旦命中进程直接死。
 
-## 六条路径（对应主上需求）
+## 八条路径（对应主上需求）
+
+功能页 1「歌曲扒谱」= 从整首歌出发，先分离再扒；
+功能页 2「音频直扒」= 从**手头已有的音频**出发（自己分好的人声 / 伴奏 / 多轨素材），
+不调动 Demucs，直接识别成 MIDI。
 
 | mode | 功能页 | 分离 | 扒谱算法 | 输出轨 |
 |---|---|---|---|---|
 | `full_auto` | 1 | Demucs | 伴奏 CQT 多音高 + 人声 pYIN | Voice + Accompaniment |
 | `accompaniment` | 1 | Demucs | CQT 多音高 | Accompaniment |
 | `vocals` | 1 | Demucs | pYIN 单旋律 | Voice |
-| `basic` | 1 / 2 | 无 | CQT 多音高 | Instrument |
-| `basic_multi` | 2 | 无 | CQT 多音高（可多轨） | Instrument N |
+| `basic` | 1 | 无 | CQT 多音高 | Instrument |
+| `basic_vocals` | 2 | 无 | pYIN 单旋律 | Voice |
+| `basic_accompaniment` | 2 | 无 | CQT 多音高 | Accompaniment |
+| `basic_multi` | 2 | 无 | CQT 多音高（逐轨） | Instrument N |
 | `pre_separated` | 2 | 跳过（用户提供） | 各轨分别扒 | 由用户提供的轨道数 |
+
+### `basic_vocals` / `basic_accompaniment` 的由来（主上主场景）
+主上把 Demucs 分好的人声单独丢进来，要做**单轨小提琴谱**用于演奏：
+直播时伴奏另放，琴拉人声部分。故需要「输入一个音频 → 输出**一轨**」的路径，
+且不带伴奏轨。`basic_vocals` 走 pYIN 单旋律（人声/小提琴是单声部乐器，
+CQT 多音高会把泛音误判成和声声部）；`basic_accompaniment` 走 CQT 多音高，
+留作将来把伴奏给钢琴/吉他等其他复音乐器用。
 
 ## 关键设计决策（均来自实测，非推测）
 
@@ -115,6 +128,8 @@ Mode = Literal[
     "accompaniment",
     "vocals",
     "basic",
+    "basic_vocals",
+    "basic_accompaniment",
     "basic_multi",
     "pre_separated",
 ]
@@ -145,6 +160,10 @@ DEFAULT_N_PEAKS = {
     "accompaniment": 6,
     "vocals": 2,
     "basic": 5,
+    # 单轨·人声旋律走 pYIN（单音高追踪），n_peaks 不参与运算；
+    # 此处仍登记一个值，只是为了让前端的「此模式推荐 N」有据可依。
+    "basic_vocals": 2,
+    "basic_accompaniment": 6,
     "basic_multi": 6,
     "pre_separated": 5,
 }
@@ -688,17 +707,56 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             ]
             roles = ["instrument"]
 
-        elif req.mode == "basic_multi":
+        elif req.mode == "basic_vocals":
+            # 单轨 · 人声旋律：不分离，对整段音频追一条旋律线。
+            # 走 pYIN 单音高追踪（与 `vocals` 同一算法），而非 CQT 多音高——
+            # 人声与独奏小提琴都是单声部，多音高识别会把泛音误判成和声声部，
+            # 生成的谱面出现大量无法演奏的假声部。主上明确要「单轨小提琴谱」。
+            _switch("spectrum", 0.0)
+            track_notes_list = [
+                _transcribe_vocal(
+                    req.input_path, req.hop_length,
+                    req.min_note_duration, _mono, "人声",
+                )
+            ]
+            roles = ["vocals"]
+
+        elif req.mode == "basic_accompaniment":
+            # 单轨 · 伴奏多音高：不分离，对整段音频做多音高识别。
+            # 与 `basic_vocals` 成对存在，留给将来把伴奏交给他种复音乐器（钢琴/吉他）。
             _switch("spectrum", 0.0)
             track_notes_list = [
                 _transcribe_cqt(
                     req.input_path, safe_n_peaks, req.hop_length,
                     safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
-                    _mono, "乐器",
+                    _mono, "伴奏",
                 )
             ]
-            roles = ["instrument"]
+            roles = ["accompaniment"]
+
+        elif req.mode == "basic_multi":
+            # 多轨 · 逐轨扒谱：主输入 + extra_inputs，每个文件出 1 轨。
+            #
+            # 踩坑实录（本次修复）：初版只转写 req.input_path，而前端拖放区
+            # 允许多选最多 6 个文件（`max={ws.isBasicMulti ? 6 : 1}`）——
+            # 于是后 5 个文件被**静默丢弃**，用户以为都扒了。
+            # 多文件输入必须逐轨处理，否则就是「悄悄吞文件」。
+            _switch("spectrum", 0.0)
+            paths = [req.input_path, *req.extra_inputs]
+            span = 1.0 / len(paths)
+            multi = len(paths) > 1
+            for idx, path in enumerate(paths):
+                _switch("spectrum", span * idx)
+                track_notes_list.append(
+                    _transcribe_cqt(
+                        path, safe_n_peaks, req.hop_length,
+                        safe_onset, safe_pitch, req.min_note_duration,
+                        req.perceptual, req.simplify, req.piano_mode,
+                        _mono, f"第 {idx + 1} 轨" if multi else "乐器", 0.0, span,
+                    )
+                )
+                roles.append("instrument")
 
         elif req.mode == "pre_separated":
             # 用户已自行分离，跳过分离阶段
@@ -775,13 +833,21 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
 
 
 def describe_modes() -> list[dict]:
-    """返回六条路径的元信息，供前端渲染模式列表（单一真源，避免前后端不一致）。"""
+    """返回八条路径的元信息，供前端渲染模式列表（单一真源，避免前后端不一致）。
+
+    字段说明：
+    - `page`      归属功能页。1 = 歌曲扒谱（先分离），2 = 音频直扒（不分离）。
+    - `tracks`    输出 MIDI 轨数。`basic_multi` 为 0，表示轨数随输入文件数变化，
+                  前端应显示「多轨」而非具体数字。
+    - `hint`      待命面板的说明文案。前端不硬编码模式说明，一律取此处。
+    """
     return [
         {
             "mode": "full_auto",
             "page": 1,
             "label": "全自动扒谱（两轨）",
             "description": "分离人声与伴奏，分别扒谱，导出双轨 MIDI",
+            "hint": "先分离再扒：伴奏走多音高，人声走单旋律，一次拿到两条轨。",
             "separates": True,
             "tracks": 2,
             "roles": ["vocals", "accompaniment"],
@@ -791,6 +857,7 @@ def describe_modes() -> list[dict]:
             "page": 1,
             "label": "只扒伴奏",
             "description": "分离后只扒伴奏轨，适合只要伴奏旋律",
+            "hint": "先分离再扒：只保留伴奏一轨，人声部分不输出。",
             "separates": True,
             "tracks": 1,
             "roles": ["accompaniment"],
@@ -800,6 +867,7 @@ def describe_modes() -> list[dict]:
             "page": 1,
             "label": "只扒人声旋律",
             "description": "分离后只扒人声旋律，单音轨",
+            "hint": "先分离再扒：只保留人声旋律一轨，适合翻唱或独奏参考。",
             "separates": True,
             "tracks": 1,
             "roles": ["vocals"],
@@ -807,19 +875,47 @@ def describe_modes() -> list[dict]:
         {
             "mode": "basic",
             "page": 1,
-            "label": "基本扒谱（乐器 / 单音轨）",
+            "label": "整段直扒（乐器 · 不分离）",
             "description": "不分离，直接对整段音频做多音高识别",
+            "hint": "不分离，直接对整段音频做多音高识别；适合纯器乐音频。",
             "separates": False,
             "tracks": 1,
             "roles": ["instrument"],
         },
         {
-            "mode": "basic_multi",
+            "mode": "basic_vocals",
             "page": 2,
-            "label": "基本扒谱（多音轨）",
-            "description": "适合已有多轨素材，逐轨扒谱",
+            "label": "单轨直扒（人声旋律）",
+            "description": "不分离，对整段音频追一条旋律线，输出单轨",
+            "hint": (
+                "不分离，直接提取单条旋律线，输出 1 轨。"
+                "适合已分好的人声，或小提琴等单声部乐器独奏录音。"
+            ),
             "separates": False,
             "tracks": 1,
+            "roles": ["vocals"],
+        },
+        {
+            "mode": "basic_accompaniment",
+            "page": 2,
+            "label": "单轨直扒（伴奏多音高）",
+            "description": "不分离，对整段音频做多音高识别，输出单轨",
+            "hint": (
+                "不分离，直接做多音高识别，输出 1 轨。"
+                "适合伴奏、钢琴、吉他等复音乐器，方便改成别的乐器演奏。"
+            ),
+            "separates": False,
+            "tracks": 1,
+            "roles": ["accompaniment"],
+        },
+        {
+            "mode": "basic_multi",
+            "page": 2,
+            "label": "多轨直扒（逐轨扒谱）",
+            "description": "不分离，每个文件输出一轨，适合已分好轨的素材",
+            "hint": "不分离，每个文件各输出 1 轨；适合手上已经分好轨的多轨素材。",
+            "separates": False,
+            "tracks": 0,
             "roles": ["instrument"],
         },
         {
@@ -827,6 +923,7 @@ def describe_modes() -> list[dict]:
             "page": 2,
             "label": "已分离音频直入",
             "description": "导入你已分离好的人声 + 伴奏，跳过分离步骤",
+            "hint": "你已分好人声与伴奏，放进两个槽位即可，跳过分离直接扒。",
             "separates": False,
             "tracks": 2,
             "roles": ["vocals", "accompaniment"],
