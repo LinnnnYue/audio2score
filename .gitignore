@@ -1,0 +1,18 @@
+# 忽略目录
+.venv/
+.tmp/
+node_modules/
+dist/
+target/
+__pycache__/
+*.pyc
+.DS_Store
+
+# 大文件（模型权重/音频缓存不入库）
+*.mid.tmp
+*.wav.tmp
+.cache/
+
+# 编辑器
+.vscode/
+.idea/
