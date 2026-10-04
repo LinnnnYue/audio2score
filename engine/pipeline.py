@@ -53,13 +53,58 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal
 
 # 把 vendored 上游挂到 sys.path（只读引用，不写入）
-_UPSTREAM = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "third_party",
-    "AutoTranscriber",
-)
-if _UPSTREAM not in sys.path:
-    sys.path.insert(0, _UPSTREAM)
+#
+# 踩坑实录（打包兼容性）：初版只认一种布局——
+#   <engine>/../../third_party/AutoTranscriber
+# 开发态下成立（项目根/engine → 项目根/third_party），但 **Tauri 打包后资源
+# 目录会重排**，此路径可能失效，表现为 `ModuleNotFoundError: No module named
+# 'AutoTranscriber'`——且只在装好的正式版里出现，本地开发永远测不到。
+#
+# 正解：列出多个候选，逐个探测（含 `AutoTranscriber/__init__.py` 是否存在），
+# 第一个命中的即用；全不命中则给出**可操作的**错误信息而非裸 ImportError。
+_ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_ENGINE_DIR)
+
+
+def _find_upstream() -> str | None:
+    """在多个候选位置中找 vendored 上游根目录（含 AutoTranscriber/ 子包）。"""
+    candidates = [
+        # 开发态：<项目根>/engine/../../third_party/AutoTranscriber
+        os.path.join(_PROJECT_ROOT, "third_party", "AutoTranscriber"),
+        # 打包态：resources/engine 与 resources/third_party 可能同级或父子
+        os.path.join(_ENGINE_DIR, "third_party", "AutoTranscriber"),
+        os.path.join(_ENGINE_DIR, "..", "third_party", "AutoTranscriber"),
+        os.path.join(_ENGINE_DIR, "..", "..", "third_party", "AutoTranscriber"),
+        # 兜底：直接在引擎同级找 AutoTranscriber 包
+        os.path.join(_PROJECT_ROOT, "AutoTranscriber"),
+    ]
+    for c in candidates:
+        c = os.path.abspath(c)
+        if os.path.isfile(os.path.join(c, "AutoTranscriber", "__init__.py")):
+            return c
+    return None
+
+
+_UPSTREAM = _find_upstream()
+if _UPSTREAM:
+    if _UPSTREAM not in sys.path:
+        sys.path.insert(0, _UPSTREAM)
+else:
+    # 不静默失败——给出可操作的指引
+    import warnings as _warnings
+
+    _warnings.warn(
+        "找不到 vendored 上游 AutoTranscriber。\n"
+        f"已尝试的位置：\n  " + "\n  ".join(
+            os.path.abspath(c) for c in [
+                os.path.join(_PROJECT_ROOT, "third_party", "AutoTranscriber"),
+                os.path.join(_ENGINE_DIR, "third_party", "AutoTranscriber"),
+            ]
+        )
+        + "\n请重新安装应用，或确认安装包完整。",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 
 from format_guard import AudioFormatError, ensure_workdir, load_for_upstream  # noqa: E402
 from midi_post import TrackSpec, apply_track_metadata  # noqa: E402

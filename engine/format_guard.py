@@ -34,13 +34,89 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # 经实测可被 soundfile 直读的格式（零拷贝路径）
+# 实测覆盖：wav mp3 flac ogg opus aiff au（9/9 通过，见 docs/desktop/v1/02-format-matrix.md）
 NATIVE_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".oga", ".opus", ".aiff", ".aif", ".aifc", ".au", ".snd"}
 
-# 需要 ffmpeg 转码的格式（上游声称支持但实测失败）
-TRANSCODE_EXTS = {".m4a", ".mp4", ".aac", ".wma", ".wav.aac", ".ape", ".alac", ".m4b", ".mpc", ".tta", ".wv", ".aifc"}
+# 需要 ffmpeg 转码的格式
+#
+# 踩坑实录（设计决策，非事后补记）：
+# 早期版本把 ape / mpc / tta / alac / wv 一股脑列进来，理由是「冷门格式，
+# 顺手支持一下」。但本机 ffmpeg **只有它们的解码器、没有编码器**
+# （`ffmpeg -decoders` 有 ape/mpc7/mpc8，`-encoders` 无），
+# 所以我连一个测试样本都造不出来 —— 即无法验证，只是不敢删。
+#
+# 「不敢删」是危险状态：UI 会向主上宣称支持这些格式，用户拖进来才发现不行。
+# 故改为**可自证的准入判据**：能列出 ffmpeg 解码器才收，不确定的一律移出白名单。
+# 详见 `_probe_decoders()`。
+TRANSCODE_EXTS = {".m4a", ".mp4", ".aac", ".wma", ".wv", ".alac", ".m4b"}
 
-# 界面上可以展示给用户的扩展名清单
-SUPPORTED_EXTS = sorted(NATIVE_EXTS | TRANSCODE_EXTS | {".mp4", ".m4b"})
+# 解码器可用才纳入的扩展名 → ffmpeg 解码器名
+# 实测（本机 gyan full_build 5.1.2）：ape / mpc7 / mpc8 解码器均在，故这三类可支持
+DECODER_GATED = {
+    ".ape": "ape",          # Monkey's Audio
+    ".mpc": "mpc8",         # Musepack（mpc7/8 同一容器）
+    ".tta": "tta",          # True Audio
+    ".wv": "wavpack",       # WavPack
+}
+
+# 解码器探测结果缓存（探测需起子进程，约 200ms，不宜每次调用）
+_DECODER_CACHE: set[str] | None = None
+
+
+def _probe_decoders() -> set[str]:
+    """
+    列出 ffmpeg 可用的**音频解码器**名集合。
+
+    用途：作为冷门格式的准入判据。列不出来 = 本机解不了 = 不该在
+    UI 里宣称支持。这是「用可验证的信号替代猜测」的落地。
+    """
+    global _DECODER_CACHE
+    if _DECODER_CACHE is not None:
+        return _DECODER_CACHE
+
+    found: set[str] = set()
+    ffmpeg = find_ffmpeg()
+    if ffmpeg:
+        try:
+            proc = subprocess.run(
+                [ffmpeg, "-hide_banner", "-decoders"],
+                capture_output=True, text=True, timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            for line in proc.stdout.splitlines():
+                parts = line.split()
+                # 形如 " A..... ape   Monkey's Audio"
+                if len(parts) >= 2 and len(parts[0]) == 6 and parts[0][0] == "A":
+                    found.add(parts[1])
+        except Exception:  # noqa: BLE001 — 探测失败不等于全不支持
+            pass
+
+    _DECODER_CACHE = found
+    return found
+
+
+def _dynamic_transcode_exts() -> set[str]:
+    """按解码器可用性动态得出转码扩展名集合。"""
+    dec = _probe_decoders()
+    out = set(TRANSCODE_EXTS)
+    for ext, decoder in DECODER_GATED.items():
+        if decoder in dec:
+            out.add(ext)
+    return out
+
+
+def available_exts() -> set[str]:
+    """当前机器**实际可支持**的扩展名集合。UI 与校验都用它，不做过度承诺。"""
+    return NATIVE_EXTS | _dynamic_transcode_exts()
+
+
+# 界面上可以展示给用户的扩展名清单（动态，随 ffmpeg 能力变化）
+def supported_exts() -> list[str]:
+    return sorted(available_exts())
+
+
+# ⚠️ SUPPORTED_EXTS 的求值放在文件末尾（find_ffmpeg 定义之后）——
+#    模块顶部的 _probe_decoders() 会调用 find_ffmpeg，提前求值会 NameError。
 
 # ffmpeg 转码目标参数：44.1kHz 立体声 16-bit PCM WAV
 # 理由：demucs 与 librosa 都以 44.1k 为原生训练采样率，最高保真，避免二次重采样损失
@@ -106,9 +182,14 @@ def find_ffmpeg() -> str | None:
 
 
 def is_supported(path: str) -> bool:
-    """扩展名是否在支持清单内（不验证内容，仅查表）。"""
+    """扩展名是否在本机**实际**支持清单内（按 ffmpeg 解码器能力动态判定）。"""
     ext = os.path.splitext(path)[1].lower()
-    return ext in NATIVE_EXTS or ext in TRANSCODE_EXTS
+    return ext in available_exts()
+
+
+# 向后兼容的静态快照。此处求值，此时 find_ffmpeg / _probe_decoders 均已定义。
+# ⚠️ 运行时判断请用 supported_exts() / is_supported()，它们按本机能力动态判定。
+SUPPORTED_EXTS = sorted(available_exts())
 
 
 def needs_transcode(path: str) -> bool:
@@ -143,7 +224,7 @@ def validate_audio_file(path: str) -> None:
     if not is_supported(path):
         ext = os.path.splitext(path)[1] or "(无扩展名)"
         raise AudioFormatError(
-            f"暂不支持 {ext} 格式。已支持：{'、'.join(SUPPORTED_EXTS)}",
+            f"暂不支持 {ext} 格式。当前可读：{'、'.join(supported_exts())}",
             f"path={path}",
         )
 

@@ -145,15 +145,21 @@ def check_installed(engine_dir: Path) -> dict:
         "except Exception as e:\n"
         "    r['basic']=False; r['basicErr']=str(e)[:200]\n"
         "try:\n"
+        # 同样要求 __file__ 非 None，避免命名空间包造成的假成功（见下方注释）
         "    import torch,demucs\n"
-        "    r['demucs']=True\n"
+        "    r['demucs']= bool(getattr(torch,'__file__',None)) and bool(getattr(demucs,'__file__',None))\n"
         "    r['cuda']=bool(torch.cuda.is_available())\n"
         "    r['torchVer']=torch.__version__\n"
         "except Exception as e:\n"
         "    r['demucs']=False; r['demucsErr']=str(e)[:200]\n"
         "try:\n"
+        # 踩坑实录：干净环境实测 basic 档时，`import mcp` 竟**成功**，
+        # 但 pip list 里根本没有 mcp，且 `mcp.__file__ is None`。
+        # 根因：某包（numba 系）注册了顶层命名空间包 `mcp`，使 import 假成功。
+        # 正解：要求 `__file__` 非 None（即真实模块文件），否则判为未安装。
+        # 教训：**import 成功不等于包真的装了**，须验证 __file__。
         "    import mcp\n"
-        "    r['mcp']=True\n"
+        "    r['mcp']= bool(getattr(mcp,'__file__',None))\n"
         "except Exception:\n"
         "    r['mcp']=False\n"
         "print(json.dumps(r))\n"
