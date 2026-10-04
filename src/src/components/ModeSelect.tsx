@@ -8,7 +8,7 @@
  * 键盘 ↑↓ / Enter / Esc 可用。
  */
 
-import { Check, ChevronDown, Layers, Zap } from 'lucide-react'
+import { Check, ChevronDown, Layers, Loader2, Zap } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { ModeInfo, TranscribeMode } from '../lib/types'
@@ -83,6 +83,34 @@ export function ModeSelect({ modes, value, onChange, disabled }: Props) {
     if (!open) return
     listRef.current?.querySelector<HTMLElement>(`[data-idx="${cursor}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [open, cursor])
+
+  /**
+   * 空态：模式列表没拿到（引擎未就绪 / invoke 被拒 / 后端异常）。
+   *
+   * 踩坑实录（主上反馈「模式下拉菜单什么都没有」）：初版无空态，
+   * `modes` 为空数组时按钮仍显示「选择扒谱模式」，点开是空白浮层——
+   * 用户完全无从判断是加载失败还是本来就没数据。**静默空态是 bug。**
+   */
+  if (modes.length === 0) {
+    return (
+      <div
+        className="flex items-center gap-2.5 rounded-[var(--r-sm)] border border-line bg-surface-3 px-3 py-2"
+        role="status"
+      >
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-accent-soft text-accent">
+          <Loader2 size={12} strokeWidth={1.9} className="animate-spin" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-medium text-ink">
+            模式列表加载中
+          </span>
+          <span className="block truncate text-[10.5px] text-ink-faint">
+            若长时间无内容，请检查引擎是否已安装
+          </span>
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div ref={wrapRef} className="relative w-full">

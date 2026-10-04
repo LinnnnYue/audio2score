@@ -165,6 +165,7 @@ export function getEnvInfo(): Promise<EnvInfo> {
 }
 
 /** 六模式的元信息（单一真源）。 */
+/** 六模式的元信息（单一真源）。 */
 export function getModes(): Promise<ModesPayload> {
   if (!inTauri()) return stub('get_modes', STUB_MODES)
   return invoke<ModesPayload>('get_modes')

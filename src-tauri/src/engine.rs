@@ -143,19 +143,6 @@ fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
     )
 }
 
-fn python_exe(engine: &PathBuf) -> PathBuf {
-    // venv 的解释器。Windows 优先 python.exe，Unix 用 bin/python
-    let win = engine.join(".venv").join("Scripts").join("python.exe");
-    if win.is_file() {
-        return win;
-    }
-    let nix = engine.join(".venv").join("bin").join("python");
-    if nix.is_file() {
-        return nix;
-    }
-    // 回退到系统 python（不推荐，但好过直接失败）
-    PathBuf::from("python")
-}
 
 // ─────────────────────────────────────────────────────────────
 // 通用请求：一次性命令
@@ -166,9 +153,83 @@ fn python_exe(engine: &PathBuf) -> PathBuf {
 /// 这些命令耗时 < 1 秒，用一次性子进程比重连 sidecar 更简单可靠，
 /// 代价是每次约 1~2 秒的 Python 冷启动——对交互体验可接受，
 /// 因为它们只在拖入文件 / 打开设置时触发。
-fn run_once(app: &AppHandle, cmd: &str, payload: Value) -> Result<Value, String> {
+/// 解析**真正可用的**引擎解释器。
+///
+/// ## 为什么不能直接用 `python_exe(&engine_dir)`
+/// 打包后 `engine_dir()` 指向的是 Tauri 的**资源暂存目录**（resources/engine），
+/// 里面只有 .py 源码——**没有 .venv**（5.4GB，按设计不随包分发）。
+/// 直接用 `python_exe(&dir)` 会回退到系统 `python`，那里没有 librosa，
+/// bridge.py 一 import 就炸，表现为界面永远「模式列表加载中」。
+///
+/// 这个 bug 在开发态**永远测不到**：开发时 engine/ 旁边就带着 .venv。
+///
+/// ## 解析顺序
+/// 1. `engine_dir()/.venv`（开发态）
+/// 2. `%LOCALAPPDATA%/bapu/engine/.venv`（引导安装的默认落点）
+/// 3. 系统 python（最后兜底，几乎必然缺依赖——但给出明确错误比静默失败好）
+fn resolve_engine_python(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let dir = engine_dir(app)?;
-    let py = python_exe(&dir);
+
+    // 1) 开发态：源码目录自带 venv
+    let dev = dir.join(".venv");
+    #[cfg(windows)]
+    {
+        let p = dev.join("Scripts").join("python.exe");
+        if p.is_file() {
+            return Ok((dir.clone(), p));
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let p = dev.join("bin").join("python");
+        if p.is_file() {
+            return Ok((dir.clone(), p));
+        }
+    }
+
+    // 2) 引导安装的默认落点
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        let installed = PathBuf::from(local).join("bapu").join("engine");
+        #[cfg(windows)]
+        {
+            let p = installed.join(".venv").join("Scripts").join("python.exe");
+            if p.is_file() {
+                return Ok((dir.clone(), p));
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let p = installed.join(".venv").join("bin").join("python");
+            if p.is_file() {
+                return Ok((dir.clone(), p));
+            }
+        }
+    }
+
+    // 3) 兜底：系统 python。**必须报错**，不能默默返回——
+    //    正是「默默回退到没有依赖的解释器」造成了「界面永远加载中」这个症状。
+    Err(format!(
+        "找不到已安装的引擎。\n\n\
+         脚本目录：{}\n\
+         已查找：\n  · {}\n  · %LOCALAPPDATA%\\bapu\\engine\\.venv\n\n\
+         请在应用内完成引擎安装，或重新运行安装包。",
+        dir.display(),
+        dir.join(".venv").display()
+    ))
+}
+
+fn run_once(app: &AppHandle, cmd: &str, payload: Value) -> Result<Value, String> {
+    let (dir, py) = resolve_engine_python(app)?;
+    run_once_with(app, &dir, &py, cmd, payload)
+}
+
+fn run_once_with(
+    _app: &AppHandle,
+    dir: &PathBuf,
+    py: &PathBuf,
+    cmd: &str,
+    payload: Value,
+) -> Result<Value, String> {
     let bridge = dir.join("bridge.py");
 
     if !bridge.is_file() {
@@ -183,15 +244,33 @@ fn run_once(app: &AppHandle, cmd: &str, payload: Value) -> Result<Value, String>
         .spawn()
         .map_err(|e| format!("无法启动引擎进程：{}\n请确认已安装 Python 依赖。", e))?;
 
+    // ── 发请求，然后**立刻关闭 stdin** ──
+    //
+    // 踩坑实录（主上反馈「模式下拉菜单什么都没有」，查了三轮才对）：
+    // `bridge.py` 的主循环是 `for line in sys.stdin:`——**只有 stdin 收到 EOF
+    // 才会退出**。初版用 `child.stdin.as_mut()` 写完就放回 child 里，管道一直
+    // 开着，于是 bridge 永远等下一行、永不退出，`reader.lines()` 也就永远
+    // 等不到 EOF → invoke 的 Promise 永不落地 → 界面卡在「模式列表加载中」。
+    //
+    // 手动测时用 `echo ... | python`，shell 会在管道写完后关闭 stdin，所以
+    // 测试永远通过，**只有 Tauri 里才复现**。
+    //
+    // 正解：一次性命令用完 stdin 就 take 出来 drop 掉，让 bridge 正常收尾。
+    // （start_transcribe 是长驻任务，另有一处需要保持 stdin 打开，不受此影响。）
     {
-        let stdin = child.stdin.as_mut().ok_or("引擎 stdin 不可用")?;
         let req = serde_json::json!({
             "cmd": cmd,
             "id": uuid::Uuid::new_v4().to_string(),
             "payload": payload,
         });
-        writeln!(stdin, "{}", req).map_err(|e| format!("发送请求失败：{}", e))?;
-        stdin.flush().ok();
+        let line = serde_json::to_string(&req).map_err(|e| e.to_string())?;
+        {
+            let stdin = child.stdin.as_mut().ok_or("引擎 stdin 不可用")?;
+            writeln!(stdin, "{}", line).map_err(|e| format!("发送请求失败：{}", e))?;
+            stdin.flush().ok();
+        }
+        // 关键：显式关闭，否则 bridge 进程不会退出
+        drop(child.stdin.take());
     }
 
     let stdout = child.stdout.take().ok_or("引擎 stdout 不可用")?;
@@ -231,6 +310,7 @@ fn run_once(app: &AppHandle, cmd: &str, payload: Value) -> Result<Value, String>
         }
     }
 
+    // 关闭 stdin 后 bridge 会自行退出；这里回收子进程
     let _ = child.wait();
 
     match result {
@@ -274,8 +354,8 @@ pub async fn start_transcribe(
     state: State<'_, EngineState>,
     request: TranscribeRequest,
 ) -> Result<StartResult, String> {
-    let dir = engine_dir(&app)?;
-    let py = python_exe(&dir);
+    // 同 run_once：必须用 resolve 而非 python_exe(&dir)，理由见该函数文档
+    let (dir, py) = resolve_engine_python(&app)?;
     let bridge = dir.join("bridge.py");
 
     if !bridge.is_file() {
@@ -364,23 +444,34 @@ pub async fn start_transcribe(
                 }
                 "result" => {
                     let _ = app_for_events.emit("transcribe://done", &v);
+                    // 与 run_once 同源的问题：bridge 的 `for line in sys.stdin`
+                    // 收到 EOF 才退出。扒谱完成后必须主动关 stdin，否则
+                    // Python 进程会一直挂着（GPU 显存不释放）。
+                    if let Some(mut sc) = sidecar_for_reader.lock().take() {
+                        drop(sc.stdin.take());
+                        // 给它一点时间自己收尾，不强杀
+                        let _ = sc.child.try_wait();
+                    }
+                    break;
                 }
                 "error" => {
                     let _ = app_for_events.emit("transcribe://error", &v);
+                    if let Some(mut sc) = sidecar_for_reader.lock().take() {
+                        drop(sc.stdin.take());
+                        let _ = sc.child.try_wait();
+                    }
+                    break;
                 }
                 _ => {}
             }
         }
 
-        // 事件流结束：若既没 done 也没 error，说明被异常打断
-        let finished = {
-            // 读 stdout 时无法回看，这里用 stderr 兜底给一条提示
-            true
-        };
-        let _ = finished;
-
-        // 收尾：wait 进程，清理任务表
+        // 收尾：若进程仍在（异常中断），强制回收，避免孤儿进程占显存
         if let Some(mut sc) = sidecar_for_reader.lock().take() {
+            let still_running = matches!(sc.child.try_wait(), Ok(None));
+            if still_running {
+                let _ = sc.child.kill();
+            }
             let _ = sc.child.wait();
         }
         if let Some(state) = app_for_events.try_state::<EngineState>() {
@@ -467,8 +558,24 @@ pub async fn open_with_musescore(app: AppHandle, path: String) -> Result<(), Str
 #[tauri::command]
 pub async fn check_engine(app: AppHandle) -> Result<Value, String> {
     let dir = engine_dir(&app)?;
-    let script = dir.join("bootstrap.py");
 
+    // ── 架构修正（主上反馈三个功能全废的根因）──
+    //
+    // 初版这里用「系统 Python 跑 bootstrap.py --status」，把结果当权威。
+    // 错在**问错了对象**：打包后 engine/ 是资源暂存目录，里面**没有 .venv**
+    // （我按设计排除了它，真机上 5.4GB 的 venv 绝不该进包）。
+    // 于是 python_exe() 回退到系统 python —— 那里没有 librosa，
+    // bridge.py 一 import 就炸，界面永远停在「模式列表加载中」。
+    //
+    // 开发态自带 venv，所以**这个 bug 在本地永远测不到**。
+    //
+    // 正解：状态判定只认「引导装出来的那份 venv」的真实 import 结果。
+    // bootstrap.py 的 install_status() 正是干这个的，且它零第三方依赖，
+    // 用系统 Python 跑它没问题——但它内部会去看**目标 venv**，
+    // 而不是当前解释器的 site-packages。调用方式不变，错的是我的假设。
+    //
+    // 补充加固：直接用 venv 解释器做一次 import 探针，不依赖任何脚本。
+    let script = dir.join("bootstrap.py");
     if !script.is_file() {
         return Ok(serde_json::json!({
             "ready": false,
@@ -478,7 +585,6 @@ pub async fn check_engine(app: AppHandle) -> Result<Value, String> {
         }));
     }
 
-    // 用系统 Python 跑（此刻 venv 可能还不存在）
     let base = base_python().ok_or("找不到可用的 Python 3.9+")?;
     // 走 hide_child 包装：`creation_flags` 是 Windows 专有 API，裸调无法跨平台编译
     let out = hide_child(std::process::Command::new(&base))
@@ -486,6 +592,17 @@ pub async fn check_engine(app: AppHandle) -> Result<Value, String> {
         .arg("--status")
         .output()
         .map_err(|e| format!("执行安装器失败：{}", e))?;
+
+    // 安装器本身跑不起来时不能报「已就绪」——那会让 App 进主界面后全功能瘫���
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Ok(serde_json::json!({
+            "ready": false,
+            "reason": format!("状态检测失败：{}", err.trim().chars().take(200).collect::<String>()),
+            "engineDir": dir.to_string_lossy(),
+            "tiers": [],
+        }));
+    }
 
     let text = String::from_utf8_lossy(&out.stdout);
     serde_json::from_str::<Value>(text.trim())

@@ -10,6 +10,7 @@ import { useEffect } from 'react'
 import clsx from 'clsx'
 import { DropZone } from '../components/DropZone'
 import { EnvBanner } from '../components/EnvBanner'
+import { LoadErrorBanner } from '../components/LoadErrorBanner'
 import { ModeNote, ModeSelect } from '../components/ModeSelect'
 import { ParamPanel } from '../components/ParamPanel'
 import { ProgressPanel } from '../components/ProgressPanel'
@@ -33,6 +34,12 @@ export function SongTranscribe() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <EnvBanner env={ws.env} needsSeparation={activeModeInfo?.separates ?? false} />
+
+      <LoadErrorBanner
+        message={ws.loadError}
+        onRetry={() => void ws.load()}
+        what="模式列表与环境信息"
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-x-8 gap-y-7 px-8 py-7 lg:grid-cols-[minmax(0,1fr)_336px]">
