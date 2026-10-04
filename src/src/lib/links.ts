@@ -1,10 +1,17 @@
 /**
  * links.ts — 对外链接 + 「交给系统浏览器打开」的统一入口
  *
- * ## 为什么集中在一处
- * 官网与说明文档是**同一个单文件站点**的两个视图（WorkBuddy 资料库托管）：
- * 站内靠 hash 路由切换，`#/` 是首页，`#/docs` 是文档页。
- * 页面改版后重新发布，链接本身不变 —— 所以这里写死是安全的。
+ * ## 为什么是**两个**链接，而不是一页两视图
+ * 资料库的发布链接（`workbuddy.link/p/<id>`）在浏览器里是
+ * 「WorkBuddy 外壳 + iframe」，内容托管在另一台静态服务器上：
+ *     <iframe src="https://workbuddy-space-static.codebuddy.work/page/<id>/<rev>/xxx.html">
+ *
+ * ⚠️ 实测：**外层 URL 的 hash 不会透传给 iframe**（iframe 的 src 永远不带 hash）。
+ * 所以「单页面 + `#/`、`#/docs` 站内路由」在分享页里必然失效 ——
+ * 打开 `…p/<id>#/docs` 只会落在 iframe 内的首页。
+ *
+ * 正解：把首页与文档**拆成两个独立页面**、各自发布、互相绝对链接。
+ * 这样每个按钮都有自己可直接到达的目标。
  *
  * ## 为什么不用 window.open
  * 应用是无边框（decorations:false）的 Tauri 窗口，`window.open` 弹出的
@@ -12,14 +19,11 @@
  * 权限已在 `src-tauri/capabilities/default.json` 里授予 `opener:allow-open-url`。
  */
 
-/** 资料库发布态链接：外部可直接访问，无需登录 */
-const SITE = 'https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd'
-
 /** 官网首页（含「自动指向最新 Release」的下载按钮） */
-export const SITE_URL = `${SITE}#/`
+export const SITE_URL = 'https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd'
 
 /** 说明文档：九个旋钮 / 症状表 / 参数详解，与软件内提示同源 */
-export const DOCS_URL = `${SITE}#/docs`
+export const DOCS_URL = 'https://workbuddy.link/p/Q4EtYgaEhSHmEgOUWXS1sQ'
 
 /** 源码仓库 */
 export const GITHUB_URL = 'https://github.com/LinnnnYue/audio2score'
