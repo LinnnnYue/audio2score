@@ -188,7 +188,17 @@ export const THEME_LIST: ThemeMeta[] = [
 
 const STORAGE_KEY = 'bapu.theme'
 
-/** 从 localStorage 恢复主题；无效值回退 frost */
+/**
+ * 默认主题。
+ *
+ * 变更记录（2026-10-04）：原为 `frost`，主上亲验后选定为 `abyss`（深海声谱）——
+ * 「深海声谱好看诶」。理由与该方向的设计契合：频谱可视化作主角，界面退为
+ * 半透明浮层，最贴合「把声音变成谱」这件工具的本性。
+ * 其余三向仍完整保留于 THEME_SWITCHER，主上随时可切。
+ */
+export const DEFAULT_THEME: ThemeId = 'abyss'
+
+/** 从 localStorage 恢复主题；无效值回退默认主题 */
 export function loadTheme(): ThemeId {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -196,7 +206,7 @@ export function loadTheme(): ThemeId {
   } catch {
     /* localStorage 不可用（隐私模式）时静默降级 */
   }
-  return 'frost'
+  return DEFAULT_THEME
 }
 
 export function persistTheme(id: ThemeId): void {

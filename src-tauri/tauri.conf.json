@@ -33,9 +33,17 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
-    "resources": ["../engine/**/*", "../third_party/AutoTranscriber/AutoTranscriber/**/*"],
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../engine/*.py": "engine",
+      "../engine/tools/*.py": "engine/tools",
+      "../third_party/AutoTranscriber/AutoTranscriber/*.py": "third_party/AutoTranscriber/AutoTranscriber"
+    },
     "windows": {
       "nsis": {
         "installMode": "currentUser"

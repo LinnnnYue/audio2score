@@ -5,8 +5,8 @@
 pub mod engine;
 
 use engine::{
-    cancel_transcribe, get_env_info, get_modes, open_with_musescore, probe_audio,
-    reveal_in_folder, start_transcribe,
+    cancel_transcribe, check_engine, get_env_info, get_modes, install_engine,
+    open_with_musescore, probe_audio, reveal_in_folder, start_transcribe,
 };
 
 /// 构建并运行 Tauri 应用。由 `main.rs` 调用。
@@ -23,6 +23,9 @@ pub fn run() {
             get_modes,
             reveal_in_folder,
             open_with_musescore,
+            // 首启引导安装
+            check_engine,
+            install_engine,
         ])
         .setup(|_app| {
             use tauri::Manager;

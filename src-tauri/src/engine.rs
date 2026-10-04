@@ -81,7 +81,8 @@ pub struct StartResult {
 
 struct Sidecar {
     child: Child,
-    stdin: ChildStdin,
+    /// 扒谱任务需要写 stdin；安装任务不需要，故为 Option。
+    stdin: Option<ChildStdin>,
 }
 
 #[derive(Default)]
@@ -304,7 +305,7 @@ pub async fn start_transcribe(
     let stdout = child.stdout.take().ok_or("引擎 stdout 不可用")?;
     let stderr = child.stderr.take();
 
-    let sidecar = Arc::new(Mutex::new(Some(Sidecar { child, stdin })));
+    let sidecar = Arc::new(Mutex::new(Some(Sidecar { child, stdin: Some(stdin) })));
     state
         .tasks
         .lock()
@@ -314,14 +315,15 @@ pub async fn start_transcribe(
     {
         let mut guard = sidecar.lock();
         let sc = guard.as_mut().ok_or("引擎已退出")?;
+        let stdin = sc.stdin.as_mut().ok_or("引擎 stdin 不可用")?;
         let req = serde_json::json!({
             "cmd": "transcribe",
             "id": task_id,
             "payload": payload,
         });
         let line = serde_json::to_string(&req).map_err(|e| e.to_string())?;
-        writeln!(sc.stdin, "{}", line).map_err(|e| format!("发送请求失败：{}", e))?;
-        sc.stdin.flush().ok();
+        writeln!(stdin, "{}", line).map_err(|e| format!("发送请求失败：{}", e))?;
+        stdin.flush().ok();
     }
 
     // 读事件流
@@ -449,4 +451,176 @@ pub async fn reveal_in_folder(app: AppHandle, path: String) -> Result<(), String
 #[tauri::command]
 pub async fn open_with_musescore(app: AppHandle, path: String) -> Result<(), String> {
     run_once(&app, "open_musescore", serde_json::json!({ "path": path })).map(|_| ())
+}
+
+// ─────────────────────────────────────────────────────────────
+// 首启引导安装
+//
+// 主上拍板「首启动引导装也行」。原因见 engine/bootstrap.py 模块文档：
+// 引擎 venv 实测 5.1GB（torch 一家 4.4GB），打进 installer 不可接受。
+//
+// 架构：安装由 Python 侧 bootstrap.py 执行（pip 逻辑复杂，Rust 重写不划算），
+// Rust 只做「起子进程 + 转发进度事件 + 解析结果」。
+// ─────────────────────────────────────────────────────────────
+
+/// 查询引擎安装状态。UI 启动时先调这个，未就绪则显示引导页。
+#[tauri::command]
+pub async fn check_engine(app: AppHandle) -> Result<Value, String> {
+    let dir = engine_dir(&app)?;
+    let script = dir.join("bootstrap.py");
+
+    if !script.is_file() {
+        return Ok(serde_json::json!({
+            "ready": false,
+            "reason": "安装器脚本缺失（安装包不完整，请重新下载）",
+            "engineDir": dir.to_string_lossy(),
+            "tiers": [],
+        }));
+    }
+
+    // 用系统 Python 跑（此刻 venv 可能还不存在）
+    let base = base_python().ok_or("找不到可用的 Python 3.9+")?;
+    // 走 hide_child 包装：`creation_flags` 是 Windows 专有 API，裸调无法跨平台编译
+    let out = hide_child(std::process::Command::new(&base))
+        .arg(&script)
+        .arg("--status")
+        .output()
+        .map_err(|e| format!("执行安装器失败：{}", e))?;
+
+    let text = String::from_utf8_lossy(&out.stdout);
+    serde_json::from_str::<Value>(text.trim())
+        .map_err(|e| format!("安装器返回无法解析：{}\n{}", e, &text[..text.len().min(300)]))
+}
+
+/// 启动引擎安装。立即返回 taskId，进度经事件流回传。
+#[tauri::command]
+pub async fn install_engine(
+    app: AppHandle,
+    state: State<'_, EngineState>,
+    tier: Option<String>,
+) -> Result<StartResult, String> {
+    let dir = engine_dir(&app)?;
+    let script = dir.join("bootstrap.py");
+    if !script.is_file() {
+        return Err("安装器脚本缺失（安装包不完整，请重新下载）".into());
+    }
+
+    let tier = tier.unwrap_or_else(|| "full".into());
+    let task_id = uuid::Uuid::new_v4().to_string();
+
+    let base = base_python().ok_or("找不到可用的 Python 3.9+")?;
+    let mut child = hide_child(std::process::Command::new(&base))
+        .arg(&script)
+        .arg("--tier")
+        .arg(&tier)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("启动安装进程失败：{}\n\n请确认已安装 Python 3.9 或更高版本。", e))?;
+
+    let stdout = child.stdout.take().ok_or("安装器 stdout 不可用")?;
+    let stderr = child.stderr.take();
+
+    // 安装器用 \r 刷新进度行；按行转发即可（Rust 侧不必解析 ANSI）
+    let app_p = app.clone();
+    let tid_p = task_id.clone();
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let reader = std::io::BufReader::new(stdout);
+        let mut seen = 0usize;
+        for line in reader.lines().map_while(std::result::Result::ok) {
+            let t = line.trim();
+            if t.is_empty() {
+                continue;
+            }
+            // 抓形如 "  [████░░░]  42.0%  说明" 的进度行
+            if let Some(pct) = parse_progress(t) {
+                let _ = app_p.emit(
+                    "install://progress",
+                    serde_json::json!({
+                        "taskId": tid_p,
+                        "pct": pct,
+                        "message": strip_bar(t),
+                    }),
+                );
+            } else {
+                let _ = app_p.emit(
+                    "install://log",
+                    serde_json::json!({ "taskId": tid_p, "message": t }),
+                );
+            }
+            seen += 1;
+        }
+        let _ = app_p.emit(
+            "install://done",
+            serde_json::json!({ "taskId": tid_p, "lines": seen }),
+        );
+    });
+
+    if let Some(se) = stderr {
+        let app_e = app.clone();
+        let tid_e = task_id.clone();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(se);
+            for line in reader.lines().map_while(std::result::Result::ok) {
+                let t = line.trim();
+                if !t.is_empty() {
+                    let _ = app_e.emit(
+                        "install://log",
+                        serde_json::json!({ "taskId": tid_e, "message": t }),
+                    );
+                }
+            }
+        });
+    }
+
+    // 记录句柄以便取消
+    let handle = Arc::new(Mutex::new(Some(Sidecar { child, stdin: None })));
+    state.tasks.lock().insert(task_id.clone(), handle);
+
+    Ok(StartResult { task_id })
+}
+
+/// 从 "  [████░░]  42.0%  xxx" 中解析百分比
+fn parse_progress(line: &str) -> Option<f64> {
+    let p = line.find('%')?;
+    let head = &line[..p];
+    let num = head
+        .rsplit(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .next()?;
+    num.parse::<f64>().ok()
+}
+
+/// 去掉进度条字符，只留说明文字
+fn strip_bar(line: &str) -> String {
+    line.chars()
+        .filter(|c| *c != '█' && *c != '░')
+        .collect::<String>()
+        .trim()
+        .trim_start_matches(|c: char| c == '[' || c == ']')
+        .trim()
+        .to_string()
+}
+
+/// 找一个能用的系统 Python 3.9+
+fn base_python() -> Option<String> {
+    for exe in ["py", "python", "python3"] {
+        if std::process::Command::new(exe)
+            .arg("-c")
+            .arg("import sys;print(1 if sys.version_info>=(3,9) else 0)")
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .and_then(|o| {
+                let t = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if t == "1" { Some(exe.to_string()) } else { None }
+            })
+            .is_some()
+        {
+            return Some(exe.to_string());
+        }
+    }
+    None
 }

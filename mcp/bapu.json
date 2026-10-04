@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "bapu": {
+      "command": "<REPO>\engine\.venv\Scripts\python.exe",
+      "args": ["<REPO>\engine\mcp_server.py"],
+      "env": {
+        "TQDM_DISABLE": "1",
+        "HF_HUB_DISABLE_PROGRESS_BARS": "1"
+      }
+    }
+  }
+}

@@ -23,11 +23,24 @@ interface Props {
 
 export function ModeSelect({ modes, value, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false)
+  /** 键盘高亮位 */
   const [cursor, setCursor] = useState(0)
+  /** 记住上次是否展开。用 state 而非 ref：渲染期调整 state 是 React 官方推荐模式，
+      且不会触发 refs 规则告警。 */
+  const [wasOpen, setWasOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   const selected = useMemo(() => modes.find((m) => m.mode === value) ?? null, [modes, value])
+
+  // 渲染期派生：刚展开时把光标落到当前选中项
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      const i = modes.findIndex((m) => m.mode === value)
+      setCursor(i >= 0 ? i : 0)
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -37,13 +50,6 @@ export function ModeSelect({ modes, value, onChange, disabled }: Props) {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
-
-  // 展开时把光标落到当前选中项
-  useEffect(() => {
-    if (!open) return
-    const i = modes.findIndex((m) => m.mode === value)
-    setCursor(i >= 0 ? i : 0)
-  }, [open, modes, value])
 
   // 键盘导航
   useEffect(() => {

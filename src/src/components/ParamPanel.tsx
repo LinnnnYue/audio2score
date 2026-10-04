@@ -16,20 +16,8 @@ import { ChevronDown, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { TranscribeMode } from '../lib/types'
+import { DEFAULT_PARAMS, type Params } from '../lib/params'
 import { Tooltip } from './Tooltip'
-
-export interface Params {
-  /** null = 用引擎按模式调好的默认值 */
-  nPeaks: number | null
-  hopLength: number
-  onsetThreshold: number
-  pitchThreshold: number
-  minNoteDuration: number
-  tempo: number
-  simplify: number
-  perceptual: boolean
-  pianoMode: boolean
-}
 
 /** 各模式的引擎默认值（pipeline.DEFAULT_N_PEAKS），仅用于 UI 展示「自动」 */
 const DEFAULT_N_PEAKS: Record<TranscribeMode, number> = {
@@ -39,18 +27,6 @@ const DEFAULT_N_PEAKS: Record<TranscribeMode, number> = {
   basic: 5,
   basic_multi: 6,
   pre_separated: 5,
-}
-
-export const DEFAULT_PARAMS: Params = {
-  nPeaks: null,
-  hopLength: 512,
-  onsetThreshold: 0.3,
-  pitchThreshold: 0.1,
-  minNoteDuration: 4,
-  tempo: 120,
-  simplify: 0,
-  perceptual: false,
-  pianoMode: false,
 }
 
 interface Props {

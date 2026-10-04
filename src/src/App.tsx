@@ -14,8 +14,10 @@ import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { BasicTranscribe } from './pages/BasicTranscribe'
 import { SongTranscribe } from './pages/SongTranscribe'
+import { EngineSetup } from './components/EngineSetup'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { WindowControls } from './components/WindowControls'
+import { checkEngine } from './lib/ipc'
 import { applyTheme, loadTheme, persistTheme, type ThemeId } from './theme/themes'
 
 type Tab = 'song' | 'basic'
@@ -32,6 +34,30 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('song')
   const [theme, setTheme] = useState<ThemeId>(() => loadTheme())
 
+  /**
+   * 首启引导：引擎未就绪时先走安装向导，装完再进主界面。
+   *
+   * 引擎 venv 实测 5.1GB（torch 4.4GB），不随包分发，故必须有这一步。
+   * 开发态自带 venv 时 checkEngine 立刻返回 ready，不打扰。
+   */
+  const [engineReady, setEngineReady] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void checkEngine()
+      .then((s) => {
+        if (alive) setEngineReady(s.ready)
+      })
+      .catch(() => {
+        // 探测失败时不阻塞主界面——让用户能进 App 再看到具体报错，
+        // 总好过白屏卡死在引导页。
+        if (alive) setEngineReady(true)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   /* 主题变量写入 :root（首帧与切换时都走这里） */
   useEffect(() => {
     applyTheme(theme)
@@ -41,6 +67,14 @@ export default function App() {
     setTheme(id)
     persistTheme(id)
   }, [])
+
+  /**
+   * 引擎未就绪 → 走首启安装向导；装完 onReady 切回主界面。
+   * engineReady 为 null 表示还在探测中，此时不渲染任何分支，避免闪烁。
+   */
+  if (engineReady === false) {
+    return <EngineSetup onReady={(): void => { setEngineReady(true) }} />
+  }
 
   /* chrome 空白处可拖动窗口；交互元素上不触发 */
   const startDrag = useCallback((e: React.MouseEvent) => {

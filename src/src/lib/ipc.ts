@@ -267,3 +267,86 @@ export async function pickMidiOutput(defaultName: string): Promise<string | null
     filters: [{ name: 'MIDI 文件', extensions: ['mid', 'midi'] }],
   })
 }
+
+/* ================================================================== *
+ * 首启引导安装接口
+ *
+ * 背景：引擎 venv 实测 5.1GB（torch 一家 4.4GB），打进 installer 不现实。
+ * 故应用壳（约 4MB）随包分发，引擎在首次运行时按需安装（主上拍板）。
+ * ================================================================== */
+
+export type InstallTier = 'basic' | 'full' | 'mcp'
+
+export interface InstallTierInfo {
+  id: InstallTier
+  label: string
+  desc: string
+}
+
+export interface EngineStatus {
+  engineDir: string
+  ready: boolean
+  reason: string
+  python: string | null
+  basic: boolean
+  demucs: boolean
+  cuda: boolean
+  torchVersion: string
+  mcp: boolean
+  tiers: InstallTierInfo[]
+}
+
+export interface InstallProgressEvent {
+  taskId: string
+  pct: number
+  message: string
+}
+
+export interface InstallLogEvent {
+  taskId: string
+  message: string
+}
+
+/** 查询引擎安装状态。未就绪时 UI 应显示引导安装页。 */
+export async function checkEngine(): Promise<EngineStatus> {
+  if (!inTauri()) {
+    return {
+      engineDir: '', ready: true, reason: '', python: null,
+      basic: true, demucs: true, cuda: false, torchVersion: '', mcp: false,
+      tiers: [],
+    }
+  }
+  return invoke<EngineStatus>('check_engine')
+}
+
+/** 启动引擎安装。进度经 install://progress 事件回传。 */
+export async function installEngine(tier: InstallTier): Promise<StartResult> {
+  if (!inTauri()) throw new Error('非桌面环境无法安装引擎')
+  return invoke<StartResult>('install_engine', { tier })
+}
+
+export async function cancelInstall(taskId: string): Promise<void> {
+  if (!inTauri()) return
+  return invoke<void>('cancel_transcribe', { taskId })
+}
+
+export async function onInstallProgress(
+  cb: (e: InstallProgressEvent) => void,
+): Promise<UnlistenFn> {
+  if (!inTauri()) return () => {}
+  return listen<InstallProgressEvent>('install://progress', (e) => cb(e.payload))
+}
+
+export async function onInstallLog(
+  cb: (e: InstallLogEvent) => void,
+): Promise<UnlistenFn> {
+  if (!inTauri()) return () => {}
+  return listen<InstallLogEvent>('install://log', (e) => cb(e.payload))
+}
+
+export async function onInstallDone(
+  cb: (e: { taskId: string; lines: number }) => void,
+): Promise<UnlistenFn> {
+  if (!inTauri()) return () => {}
+  return listen<{ taskId: string; lines: number }>('install://done', (e) => cb(e.payload))
+}

@@ -20,7 +20,7 @@ import type {
   TranscribeMode,
   TranscribeRequest,
 } from '../lib/types'
-import { DEFAULT_PARAMS, type Params } from '../components/ParamPanel'
+import { DEFAULT_PARAMS, type Params } from './params'
 import { useTranscribeTask } from './useTranscribeTask'
 import type { DroppedFile } from '../components/DropZone'
 
