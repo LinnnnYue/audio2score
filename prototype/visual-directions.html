@@ -173,7 +173,8 @@ button { background: none; border: 0; cursor: pointer; }
     0 48px 90px -30px rgba(0,0,0,.62);
   transition: background-color var(--dur-skin) var(--ease-out);
 }
-/* 假标题栏：与内容区之间无可见交界线，只靠背景色差 */
+  /* 假标题栏：与内容区之间无可见交界线，只靠背景色差 */
+  /* 窗口整体承载皮肤底色，标题栏浮于其上（无边框、无分隔线） */
 .win__bar { flex: 0 0 auto; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; }
 .win__dot { width: 7px; height: 7px; border-radius: 99px; flex: 0 0 auto; }
 .win__name { font-size: 11.5px; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -191,10 +192,14 @@ button { background: none; border: 0; cursor: pointer; }
 .win__btn--close:hover { opacity: 1; }
 .ic { width: 1em; height: 1em; display: block; flex: 0 0 auto; }
 
-/* 皮肤容器：切换时整棵子树换肤 */
-.skin { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* 皮肤容器：切换时整棵子树换肤。皮肤底色上提到 .win，使标题栏浮于同色底上（无可见交界线） */
+.skin { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: transparent; }
 .skin[hidden] { display: none; }
 .skin__in { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+[data-skin="frost"] .win { background: linear-gradient(168deg, #E7EDF4 0%, #DCE5F0 62%, #D3DEEB 100%); }
+[data-skin="cellar"] .win { background: radial-gradient(1100px 620px at 22% -8%, #262119 0%, rgba(38,33,25,0) 60%), linear-gradient(178deg, #1A1815 0%, #1E1B17 100%); }
+[data-skin="abyss"] .win { background: linear-gradient(172deg, #08101F 0%, #070C18 46%, #060A14 100%); }
+[data-skin="paper"] .win { background: #F7F5EF; }
 
 /* 换肤过渡：仅在切换瞬间挂载，限定具体属性（不写 transition:all） */
 body.skinning *, body.skinning *::before, body.skinning *::after {
@@ -265,7 +270,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .btn[disabled] { opacity: .42; pointer-events: none; }
 .btn__ic { font-size: 1.05em; }
 
-/* tooltip：纯 CSS，125–200ms */
+/* tooltip：纯 CSS，125–200ms。提示层不参与布局，故父级无需为其预留尺寸 */
 .tip { position: relative; }
 .tip::after {
   content: attr(data-tip);
@@ -275,6 +280,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   padding: 5px 8px;
   font-size: 11px; font-weight: 500; letter-spacing: .01em;
   white-space: nowrap;
+  width: max-content; max-width: 200px;
   border-radius: var(--r-xs);
   opacity: 0; pointer-events: none;
   transition: opacity var(--dur-tip) var(--ease-out), transform var(--dur-tip) var(--ease-out);
@@ -296,11 +302,12 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .sel__trg:active { transform: scale(0.98); }
 .sel__ic { font-size: 15px; flex: 0 0 auto; display: grid; place-items: center; }
 .sel__tx { min-width: 0; flex: 1 1 auto; }
-.sel__l1 { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sel__l2 { font-size: 10.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sel__l1 { display: block; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sel__l2 { display: block; font-size: 10.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sel__cv { font-size: 14px; flex: 0 0 auto; transition: transform var(--dur-ui) var(--ease-out); }
 .sel.is-open .sel__cv { transform: rotate(180deg); }
-.sel__pop { position: absolute; z-index: 30; opacity: 0; pointer-events: none; }
+.sel__pop { position: absolute; z-index: 30; opacity: 0; pointer-events: none; transition: opacity var(--dur-dd) var(--ease-out); }
+.sel.is-open .sel__pop { opacity: 1; pointer-events: auto; }
 .sel__popin {
   border-radius: var(--r-m);
   overflow: hidden;
@@ -394,7 +401,9 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .pbar--ind .pbar__f::after { content: ""; position: absolute; inset: 0; border-radius: 99px; }
 
 /* —— 结果 —— */
+/* 用 :not(.is-on) 提高特异性，确保各皮肤自身的 display 规则不会让结果卡在空态泄漏出来 */
 .res { display: none; }
+.res:not(.is-on) { display: none; }
 .res.is-on { display: block; animation: resIn var(--dur-dd) var(--ease-out) both; }
 @keyframes resIn { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .res__hd { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
@@ -441,9 +450,11 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   --sh-pop: 0 18px 40px -14px rgba(24,44,68,.28), 0 2px 6px -2px rgba(24,44,68,.10);
   color-scheme: light;
 }
-.s-frost { background: linear-gradient(168deg, var(--bg) 0%, var(--bg2) 62%, #D3DEEB 100%); color: var(--ink); }
-.s-frost .win__bar { background: rgba(255,255,255,.30); color: var(--ink2); }
-.s-frost .win__dot { background: var(--acc); }
+.s-frost { background: transparent; color: var(--ink); }
+[data-skin="frost"] .win__bar { background: rgba(233, 240, 248,.72); color: var(--ink2); }
+[data-skin="frost"] .win__dot { background: var(--acc); }
+[data-skin="frost"] .win__btn:hover { background: rgba(46,92,138,.10); opacity: 1; }
+[data-skin="frost"] .win__btn--close:hover { background: rgba(214,92,51,.14); color: var(--acc); }
 .s-frost .scroll { --sb: var(--sb); }
 .s-frost .pg__scroll { display: flex; flex-direction: column; gap: 20px; }
 
@@ -480,7 +491,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 
 /* 拖放区：主视觉，玻璃面板 */
 .fr-drop {
-  min-height: 300px; flex: 1 1 auto;
+  min-height: 216px; flex: 0 1 auto;
   border-radius: var(--r-l);
   background: var(--glass);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
@@ -554,7 +565,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .s-frost .stg__i + .stg__i::before { background: var(--line); }
 .s-frost .pbar { background: rgba(122,148,180,.20); }
 .s-frost .pbar__f { background: linear-gradient(90deg, var(--pri) 0%, #4C86BC 62%, var(--acc) 100%); }
-.fr-res { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding-top: 13px; border-top: 1px solid var(--line-2); }
+.res.is-on.fr-res { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding-top: 13px; border-top: 1px solid var(--line-2); }
 .fr-res__id { min-width: 0; flex: 1 1 260px; }
 .s-frost .res__hd { color: var(--ok); }
 .s-frost .res__t { color: var(--ok); }
@@ -590,10 +601,10 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   --mono: var(--font-mono);
   color-scheme: dark;
 }
-.s-cellar { background: radial-gradient(1100px 620px at 22% -8%, #262119 0%, rgba(38,33,25,0) 60%), linear-gradient(178deg, var(--bg) 0%, var(--bg2) 100%); color: var(--ink); }
-.s-cellar .win__bar { background: rgba(38,33,25,.55); color: var(--ink3); }
-.s-cellar .win__dot { background: var(--pri); box-shadow: 0 0 8px rgba(224,163,60,.6); }
-.s-cellar .win__name { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.s-cellar { background: transparent; color: var(--ink); }
+[data-skin="cellar"] .win__bar { background: rgba(38,33,25,.55); color: var(--ink3); }
+[data-skin="cellar"] .win__dot { background: var(--pri); box-shadow: 0 0 8px rgba(224,163,60,.6); }
+[data-skin="cellar"] .win__name { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 .s-cellar .pg__scroll { display: flex; gap: 0; padding: 0; }
 /* 机架：左输入通道 + 右主机架，中间一条刻度分隔线 */
 .ck-rack { display: grid; grid-template-columns: 246px minmax(0,1fr); flex: 1 1 auto; min-height: 0; }
@@ -706,7 +717,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .s-cellar .pbar__f { background: repeating-linear-gradient(90deg, var(--pri) 0 6px, #2A2519 6px 8px); border-radius: 2px; }
 
 /* 结果：磁带标签 */
-.ck-res { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 13px 15px; border-radius: var(--r-s); background: linear-gradient(180deg, #2A251E 0%, #221E18 100%); box-shadow: inset 0 0 0 1px var(--line); }
+.res.is-on.ck-res { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 13px 15px; border-radius: var(--r-s); background: linear-gradient(180deg, #2A251E 0%, #221E18 100%); box-shadow: inset 0 0 0 1px var(--line); }
 .ck-res__reel { position: relative; width: 42px; height: 42px; border-radius: 99px; background: radial-gradient(circle at 50% 50%, #1A1713 0 22%, #2E2921 22% 46%, #16130F 46% 100%); box-shadow: inset 0 0 0 1px var(--line-2); flex: 0 0 auto; }
 .ck-res__reel::after { content: ""; position: absolute; inset: 0; border-radius: 99px; background-image: conic-gradient(from 0deg, rgba(224,163,60,.5) 0 6deg, transparent 6deg 60deg); }
 .s-cellar .res__hd { color: var(--ok); }
@@ -742,10 +753,10 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   --mono: var(--font-mono);
   color-scheme: dark;
 }
-.s-abyss { background: linear-gradient(172deg, #08101F 0%, var(--bg) 46%, #060A14 100%); color: var(--ink); }
-.s-abyss .win__bar { background: rgba(7,12,24,.5); color: var(--ink3); }
-.s-abyss .win__dot { background: var(--pri); box-shadow: 0 0 10px rgba(43,217,196,.55); }
-.s-abyss .win__name { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+.s-abyss { background: transparent; color: var(--ink); }
+[data-skin="abyss"] .win__bar { background: rgba(7,12,24,.5); color: var(--ink3); }
+[data-skin="abyss"] .win__dot { background: var(--pri); box-shadow: 0 0 10px rgba(43,217,196,.55); }
+[data-skin="abyss"] .win__name { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
 .s-abyss .pg__scroll { position: relative; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* 频谱舞台：全幅，界面浮于其上 */
 .ab-stage { position: absolute; inset: 0; }
@@ -755,10 +766,10 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 
 /* 空态：声谱中央浮一个玻璃投放舱 */
 .ab-drop {
-  position: absolute; left: 50%; top: 46%;
+  position: absolute; left: 50%; top: 42%;
   transform: translate(-50%,-50%);
   width: min(560px, 76%);
-  min-height: 216px;
+  min-height: 196px;
   border-radius: var(--r-l);
   background: var(--glass);
   -webkit-backdrop-filter: blur(26px) saturate(1.3);
@@ -853,7 +864,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .s-abyss .stg__i.is-now .stg__t { color: var(--ink); }
 .s-abyss .pbar { background: rgba(7,12,24,.62); box-shadow: inset 0 0 0 1px var(--line); height: 3px; }
 .s-abyss .pbar__f { background: linear-gradient(90deg, #1E7FA8 0%, var(--pri) 55%, var(--acc) 100%); box-shadow: 0 0 12px -1px rgba(43,217,196,.55); }
-.ab-res { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.res.is-on.ab-res { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .ab-res__id { min-width: 0; flex: 1 1 220px; }
 .s-abyss .res__hd { color: var(--ok); }
 .s-abyss .res__t { font-family: var(--mono); color: var(--ok); }
@@ -885,9 +896,9 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   --mono: var(--font-mono);
   color-scheme: light;
 }
-.s-paper { background: var(--paper); color: var(--ink); }
-.s-paper .win__bar { background: var(--paper-2); color: var(--ink2); }
-.s-paper .win__dot { background: var(--acc); }
+.s-paper { background: transparent; color: var(--ink); }
+[data-skin="paper"] .win__bar { background: var(--paper-2); color: var(--ink2); }
+[data-skin="paper"] .win__dot { background: var(--acc); }
 .s-paper .win__name { font-size: 11.5px; letter-spacing: .04em; }
 .s-paper .pg__scroll { padding: 0; display: flex; }
 /* 左侧步骤索引栏 */
@@ -1006,6 +1017,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .s-paper .pbar__f { background: var(--acc); border-radius: 0; }
 
 /* 结果：版权页式，细框 + 表格数据 */
+.res.is-on.pp-res { display: flex; flex-direction: column; }
 .pp-res { border: 1px solid var(--ink); border-radius: 2px; padding: 15px 17px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--paper-2); }
 .pp-res__top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .s-paper .res__hd { color: var(--ok); }
@@ -1942,6 +1954,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   /* =========================== 渲染循环 =========================== */
   function loop() {
     if (state.skin === 'abyss') drawSpectrum();
+    if (state.skin === 'cellar') paintVU(state.running ? 'run' : (state.done ? 'done' : 'idle'));
     requestAnimationFrame(loop);
   }
 

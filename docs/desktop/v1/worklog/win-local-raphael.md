@@ -47,3 +47,26 @@
 - **代码状态**: 仅本地未 push（仓库刚 init，无 remote）
 - **状态**: 🔄进行中
 - **下一步**: 收 arch-scout 的 API 契约报告 → 写 `engine/bridge.py` 适配层 → 打通端到端单文件扒谱
+
+## [P1]-raphael-20261004-1226 引擎六路径端到端打通 — 2026-10-04 12:26 开始
+- **执行者**: raphael（机器：<host>）
+- **目标**: 让六条产品路径全部端到端产出 MuseScore 可用的 MIDI（需求 A1 + A5）
+- **上下文**: 依赖 P0（arch-scout 侦察报告）与已修的三个致命缺陷
+- **进展**:
+  - 写 `engine/pipeline.py`：六模式编排（full_auto / accompaniment / vocals / basic / basic_multi / pre_separated），四阶段进度上报
+  - 规避上游 D-6：`perceptual_filter` 显式传 `melody_split=False`（上游默认把 4 和弦 18 音符砍到 3）
+  - 规避上游 D-11：`compute_cqt(fmax=4186.0)`（上游硬编码 2093 切掉高音声部）
+  - 规避上游 D-15：**禁用 CREPE**（`_ensure_crepe_script()` 会往上游只读目录写文件），人声一律走 pYIN
+  - **六路径实测全部通过**（chord_progression.wav 为输入）
+  - **MuseScore 4 headless 实机验证 5/5 全 PASS**
+- **验证**:
+  - `cd engine && ../engine/.venv/Scripts/python.exe pipeline.py full_auto <wav> <out.mid>`
+  - MuseScore 验证：`Voice(1音) + Accompaniment(9音) / Instrument(9音) / Voice(1音) / Accompaniment(9音) / Voice+Accompaniment`
+- **决策与坑**:
+  - **坑（自造假警报，已纠正）**：验证脚本在项目根目录跑却用 `../.tmp/` 相对路径，指向不存在的 `<TMP>`，导致 5 个文件全报 rc=1320，一度被误判为「MIDI 全坏」。**判据：验证失败时先确认验证脚本自己没错，再怀疑产物。** 已在 `midi_post.verify_musescore_opens` 内改用 `os.path.abspath` 并把该教训写进 docstring
+  - **坑（吞错反噬）**：`separator.py` 早期版本把 demucs 真实异常吞掉直接降级 HPSS，表现为「分离质量差」，掩盖了真因（apply_model 传了 3.x 旧参数 `ref`）。**教训：降级不能吞掉失败原因**，现已完整保留失败链并在 UI/日志暴露
+  - demucs 4.1.0 API 三处坑：`apply_model()` 无 `ref` 参数 / `save_audio(wav, path, sr)` 波形在前 / `num_workers` 在 Windows 有并发风险改 0
+  - 禁用 CREPE 是**红线 B-1 的硬性要求**，非偏好选择
+- **代码状态**: 仅本地未 push（仓库无 remote）
+- **状态**: ✅完成
+- **下一步**: 派 engine-dev 分身写 Tauri command 桥与两个功能页前端；ui-visual 原型评审后落主题

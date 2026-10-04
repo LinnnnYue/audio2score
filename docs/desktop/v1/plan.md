@@ -18,20 +18,21 @@
       - 验收：文件存在且内容与上游 devskill 一致
 - [x] 写需求文档 `01-requirement.md`（五段齐全）
 - [x] 写 `BOUNDARY.md`（B-1 上游只读 / B-2 禁品红黑 / B-3 仅 MIDI / B-4 四方向全做）
-- [~] 上游 API 契约侦察报告 `03-upstream-api-contract.md`（arch-scout 承办）
+- [x] 上游 API 契约侦察报告 `03-upstream-api-contract.md`（arch-scout 承办）
       - 验收：6 条路径判定表 + 函数签名含文件:行号 + 音频格式支持矩阵（实测）+ 适配层 TODO 清单
-- [ ] 判定：是否存在「不改上游就无法实现」的能力；有则登记例外台账请主上拍板
+- [x] 判定：是否存在「不改上游就无法实现」的能力；有则登记例外台账请主上拍板
+      - 结论：**0 条需要改上游**。20 条缺陷全部有适配层解法（见 03 报告 §9/§10）
       - 验收：结论明确写进 `03-upstream-api-contract.md` §9
 
 ## P1 — 引擎层（Python，六条路径端到端可跑）
 
-- [ ] `engine/bridge.py`：上游 API 适配 + 阶段进度上报（stdout 解析）+ 错误中文化
+- [~] `engine/bridge.py`：上游 API 适配 + 阶段进度上报（stdout 解析）+ 错误中文化
       - 验收：`python engine/bridge.py --probe` 打印上游能力自检表；异常路径返回中文错误码
-- [ ] `engine/pipeline.py`：六条路径编排（双轨/伴奏/人声/基本单轨/单多轨/已分离直入）
+- [x] `engine/pipeline.py`：六条路径编排（双轨/伴奏/人声/基本单轨/单多轨/已分离直入）
       - 验收：对 `test_audio/chord_progression.wav` 六条路径各产出非空 .mid
-- [ ] 轨名与 program 映射（人声→Voice、伴奏→Piano），tempo 正确写入
+- [x] 轨名与 program 映射（人声→Voice、伴奏→Piano），tempo 正确写入
       - 验收：`pretty_midi` 读回，轨名与 program 与预期一致
-- [ ] 已分离音频直入路径（跳过 Demucs）
+- [x] 已分离音频直入路径（跳过 Demucs）
       - 验收：手工分离的 vocals+instrumental 对导入后直接出双轨
 - [ ] 引擎命令行协议（JSON stdin/stdout），供 Tauri sidecar 调用
       - 验收：PowerShell 喂 JSON 进去能拿到 JSON 结果 + 阶段事件流

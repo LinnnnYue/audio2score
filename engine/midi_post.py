@@ -233,6 +233,16 @@ def verify_musescore_opens(midi_path: str, timeout: int = 60) -> tuple[bool, str
     这是**自测工具**，不是应用运行依赖——MuseScore 未安装时返回 (False, 原因)，
     调用方须容忍失败，不阻断主流程。
 
+    ### 踩坑实录（勿改回 capture_output）
+    MuseScore 4 是 **GUI 程序**。改用 DEVNULL 丢弃输出以避免管道问题。
+
+    ### 另一条教训：验证脚本报错 ≠ 产物有问题
+    本函数曾对全部 5 个产出报 rc=1320，一度被误判为「MIDI 全坏」。
+    真因是**验证脚本自身的相对路径写错**（在项目根目录跑却用了 `../.tmp/`，
+    指向不存在的 `<TMP>`），文件其实完好，直接命令行 rc=0 出 PDF 42KB。
+    故本函数内部一律用 `os.path.abspath(midi_path)`，不依赖调用方的工作目录。
+    **判据：验证失败时，先确认验证脚本自己没错，再怀疑产物。**
+
     Returns
     -------
     (是否通过, 详细信息)
@@ -244,16 +254,22 @@ def verify_musescore_opens(midi_path: str, timeout: int = 60) -> tuple[bool, str
     out_dir = tempfile.mkdtemp(prefix="mscore_verify_")
     try:
         proc = subprocess.run(
-            [mscore, "-o", os.path.join(out_dir, "out.pdf"), midi_path],
-            capture_output=True,
+            [mscore, "-o", os.path.join(out_dir, "out.pdf"), os.path.abspath(midi_path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             timeout=timeout,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         pdf = os.path.join(out_dir, "out.pdf")
         if proc.returncode == 0 and os.path.isfile(pdf) and os.path.getsize(pdf) > 0:
             return True, f"MuseScore 解析成功，PDF {os.path.getsize(pdf) // 1024}KB"
-        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
-        return False, f"MuseScore rc={proc.returncode}: {stderr[:200]}"
+        if proc.returncode == 1320:
+            return (
+                False,
+                f"MuseScore rc=1320（GUI 程序管道崩溃，非文件问题）。"
+                f"请手动双击该 MIDI 确认。",
+            )
+        return False, f"MuseScore 返回 rc={proc.returncode}"
     except subprocess.TimeoutExpired:
         return False, f"MuseScore 验证超时（>{timeout}s）"
     except Exception as e:  # noqa: BLE001
