@@ -16,3 +16,5 @@ __pycache__/
 # 编辑器
 .vscode/
 .idea/
+third_party/
+_probe*.py

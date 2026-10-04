@@ -423,7 +423,608 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
 }
 @keyframes resFade { from { opacity: 0; } to { opacity: 1; } }
-/*@@CSS_SKINS@@*/
+/* ==================================================================================
+   SKIN 1 · FROST 霜蓝玻璃 — 浅色冷调 / 大留白 / 唯一强调色珊瑚橙
+   ================================================================================== */
+[data-skin="frost"] {
+  --bg: #E7EDF4; --bg2: #DCE5F0;
+  --glass: rgba(255,255,255,.62);
+  --glass-2: rgba(255,255,255,.44);
+  --line: rgba(122,148,180,.24);
+  --line-2: rgba(122,148,180,.15);
+  --ink: #16222E; --ink2: #5B6C7D; --ink3: #8496A8;
+  --pri: #2E5C8A; --acc: #F0784F; --ok: #2F7D63;
+  --trk: rgba(122,148,180,.30); --thb: #2E5C8A; --focus: #2E5C8A;
+  --sb: rgba(122,148,180,.42); --sb-h: rgba(90,118,150,.6);
+  --sh-1: 0 1px 2px rgba(30,52,78,.05), 0 6px 16px -6px rgba(30,52,78,.10);
+  --sh-2: 0 12px 34px -12px rgba(30,52,78,.20), 0 2px 6px -2px rgba(30,52,78,.08);
+  --sh-pop: 0 18px 40px -14px rgba(24,44,68,.28), 0 2px 6px -2px rgba(24,44,68,.10);
+  color-scheme: light;
+}
+.s-frost { background: linear-gradient(168deg, var(--bg) 0%, var(--bg2) 62%, #D3DEEB 100%); color: var(--ink); }
+.s-frost .win__bar { background: rgba(255,255,255,.30); color: var(--ink2); }
+.s-frost .win__dot { background: var(--acc); }
+.s-frost .scroll { --sb: var(--sb); }
+.s-frost .pg__scroll { display: flex; flex-direction: column; gap: 20px; }
+
+/* 顶栏：标题 + 模式 */
+.fr-top { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.fr-h { min-width: 0; flex: 1 1 auto; }
+.fr-h1 { font-size: 21px; font-weight: 640; letter-spacing: -.02em; line-height: 1.2; }
+.fr-sub { font-size: 12px; color: var(--ink2); margin-top: 5px; letter-spacing: .005em; }
+.fr-selpick { flex: 0 0 268px; }
+.fr-selpick .sel__trg {
+  height: 46px; padding: 0 13px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: var(--sh-1), inset 0 0 0 1px var(--line-2);
+}
+.fr-selpick .sel__ic { color: var(--pri); }
+.fr-selpick .sel__l2 { color: var(--ink3); }
+.fr-selpick .sel__cv { color: var(--ink3); }
+.s-frost .sel__pop { top: calc(100% + 8px); left: 0; right: 0; }
+.s-frost .sel__popin {
+  background: rgba(252,253,255,.86);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow: var(--sh-pop), inset 0 0 0 1px rgba(255,255,255,.85);
+}
+.s-frost .sel__opt + .sel__opt::before { background: var(--line-2); }
+.s-frost .sel__opt { color: var(--ink); }
+.s-frost .sel__opt s { color: var(--ink3); }
+.s-frost .sel__opt:hover { background: rgba(46,92,138,.06); }
+.s-frost .sel__opt[aria-selected="true"] { color: var(--pri); }
+.s-frost .sel__opt[aria-selected="true"] i { color: var(--pri); }
+.s-frost .sel__opt u { color: var(--acc); }
+
+/* 拖放区：主视觉，玻璃面板 */
+.fr-drop {
+  min-height: 300px; flex: 1 1 auto;
+  border-radius: var(--r-l);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: var(--sh-1), inset 0 0 0 1px rgba(255,255,255,.70);
+}
+.fr-drop.is-over { box-shadow: var(--sh-2), inset 0 0 0 2px var(--acc); background: rgba(255,255,255,.80); }
+.fr-drop .drop__ring { box-shadow: 0 0 0 4px rgba(240,120,79,.16); }
+.fr-drop .drop__icon { background: linear-gradient(180deg, #FFFFFF 0%, #EAF1F9 100%); color: var(--pri); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line-2); }
+.fr-drop.is-over .drop__icon { color: var(--acc); }
+.fr-drop .drop__t { color: var(--ink); }
+.fr-drop .drop__s { color: var(--ink2); }
+.fr-drop .drop__fmt b { color: var(--ink2); background: rgba(122,148,180,.11); }
+.fr-filebar__ic { background: linear-gradient(180deg, #FFFFFF 0%, #EAF1F9 100%); color: var(--pri); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line-2); }
+.fr-filebar__n { color: var(--ink); }
+.fr-filebar__m { color: var(--ink3); }
+.s-frost .filebar__x { color: var(--ink3); background: rgba(122,148,180,.11); }
+@media (hover: hover) and (pointer: fine) {
+  .s-frost .filebar__x:hover { background: rgba(240,120,79,.14); color: var(--acc); }
+  .fr-drop:hover { box-shadow: var(--sh-2), inset 0 0 0 1px rgba(255,255,255,.92); }
+}
+
+/* 控制台：全宽色带（非卡片），承载模式说明 + 参数 + 主操作 */
+.fr-console {
+  border-radius: var(--r-l);
+  background: var(--glass-2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.55);
+  padding: 16px 18px 17px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.fr-params { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 13px 20px; }
+.fr-p { min-width: 0; }
+.fr-p__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.fr-p__l { font-size: 11.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fr-p__v { font-size: 11.5px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fr-p__hint { font-size: 10.5px; color: var(--ink3); margin-top: 1px; }
+.s-frost .adv__trg { color: var(--ink2); font-size: 11.5px; font-weight: 550; }
+.s-frost .adv__trg:hover { color: var(--pri); }
+.s-frost .adv__cv { color: var(--ink3); }
+.s-frost .adv__clip { border-top: 1px solid var(--line-2); }
+.s-frost .adv__pad { padding-top: 13px; }
+.s-frost .num { border: 0; box-shadow: inset 0 0 0 1px var(--line); background: rgba(255,255,255,.7); color: var(--ink); height: 26px; width: 62px; font-size: 11.5px; font-weight: 600; }
+.s-frost .num:focus { box-shadow: inset 0 0 0 1.5px var(--pri); }
+.s-frost .tog { background: rgba(122,148,180,.34); }
+.s-frost .tog[aria-checked="true"] { background: var(--pri); }
+.s-frost .togrow { display: flex; align-items: center; gap: 8px; }
+.s-frost .togrow span { font-size: 11px; color: var(--ink3); }
+
+/* 进度 + 结果：全宽色带 */
+.fr-run {
+  border-radius: var(--r-l);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: var(--sh-1), inset 0 0 0 1px rgba(255,255,255,.66);
+  padding: 15px 18px 17px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.fr-run__top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.fr-run__now { font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.fr-run__pc { margin-left: auto; font-size: 12.5px; font-weight: 640; color: var(--pri); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.s-frost .stg__i { opacity: .42; }
+.s-frost .stg__i.is-done, .s-frost .stg__i.is-now { opacity: 1; }
+.s-frost .stg__d { background: var(--ink3); }
+.s-frost .stg__i.is-now .stg__d { background: var(--acc); transform: scale(1.3); }
+.s-frost .stg__i.is-done .stg__d { background: var(--pri); }
+.s-frost .stg__t { color: var(--ink2); }
+.s-frost .stg__i.is-now .stg__t { color: var(--ink); font-weight: 600; }
+.s-frost .stg__i + .stg__i::before { background: var(--line); }
+.s-frost .pbar { background: rgba(122,148,180,.20); }
+.s-frost .pbar__f { background: linear-gradient(90deg, var(--pri) 0%, #4C86BC 62%, var(--acc) 100%); }
+.fr-res { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding-top: 13px; border-top: 1px solid var(--line-2); }
+.fr-res__id { min-width: 0; flex: 1 1 260px; }
+.s-frost .res__hd { color: var(--ok); }
+.s-frost .res__t { color: var(--ok); }
+.s-frost .res__fn { color: var(--ink); }
+.s-frost .res__st { padding-right: 20px; border-right: 1px solid var(--line-2); }
+.s-frost .res__st:last-of-type { border-right: 0; }
+.s-frost .res__sv { color: var(--ink); }
+.s-frost .res__sk { color: var(--ink3); }
+.s-frost .btn--pri { background: var(--acc); color: #fff; box-shadow: 0 4px 12px -4px rgba(240,120,79,.55); }
+@media (hover: hover) and (pointer: fine) {
+  .s-frost .btn--pri:hover { background: #E2673C; }
+}
+.s-frost .btn--pri:active { background: #D65C33; }
+.s-frost .btn--ghost { color: var(--ink2); background: rgba(122,148,180,.12); }
+@media (hover: hover) and (pointer: fine) { .s-frost .btn--ghost:hover { background: rgba(122,148,180,.2); color: var(--ink); } }
+.s-frost .btn--ico { color: var(--ink2); background: rgba(122,148,180,.12); }
+@media (hover: hover) and (pointer: fine) { .s-frost .btn--ico:hover { color: var(--pri); background: rgba(46,92,138,.12); } }
+.s-frost .tip::after { background: #1B2A38; color: #F2F6FA; box-shadow: 0 6px 16px -6px rgba(16,32,48,.5); }
+
+/* ==================================================================================
+   SKIN 2 · CELLAR 暗房琥珀 — 深炭灰暖调 / 录音棚控制台 / 刻度线分区
+   ================================================================================== */
+[data-skin="cellar"] {
+  --bg: #1A1815; --bg2: #1E1B17;
+  --panel: #26221B; --panel-2: #2E2921;
+  --line: rgba(214,180,120,.15); --line-2: rgba(214,180,120,.26);
+  --ink: #EDE3D2; --ink2: #9C8F79; --ink3: #6E6555;
+  --pri: #E0A33C; --acc: #C4553D; --ok: #7FA86B;
+  --trk: rgba(214,180,120,.20); --thb: #E0A33C; --focus: #E0A33C;
+  --sb: rgba(214,180,120,.26); --sb-h: rgba(214,180,120,.45);
+  --sh-2: 0 18px 40px -16px rgba(0,0,0,.7);
+  --sh-pop: 0 20px 44px -14px rgba(0,0,0,.75), 0 0 0 1px rgba(214,180,120,.14);
+  --mono: var(--font-mono);
+  color-scheme: dark;
+}
+.s-cellar { background: radial-gradient(1100px 620px at 22% -8%, #262119 0%, rgba(38,33,25,0) 60%), linear-gradient(178deg, var(--bg) 0%, var(--bg2) 100%); color: var(--ink); }
+.s-cellar .win__bar { background: rgba(38,33,25,.55); color: var(--ink3); }
+.s-cellar .win__dot { background: var(--pri); box-shadow: 0 0 8px rgba(224,163,60,.6); }
+.s-cellar .win__name { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.s-cellar .pg__scroll { display: flex; gap: 0; padding: 0; }
+/* 机架：左输入通道 + 右主机架，中间一条刻度分隔线 */
+.ck-rack { display: grid; grid-template-columns: 246px minmax(0,1fr); flex: 1 1 auto; min-height: 0; }
+.ck-in { display: flex; flex-direction: column; gap: 14px; padding: 18px 16px 18px 20px; border-right: 1px solid var(--line); min-width: 0; }
+/* 刻度线：机架分区的视觉语言 */
+.ck-ticks { height: 7px; flex: 0 0 auto; background-image: repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 8px); opacity: .8; }
+.ck-main { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 18px 20px; min-width: 0; }
+.ck-lb { display: flex; align-items: center; gap: 8px; }
+.ck-lb__t { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink3); white-space: nowrap; }
+.ck-lb__r { flex: 1 1 auto; height: 1px; background-image: repeating-linear-gradient(90deg, var(--line) 0 3px, transparent 3px 7px); }
+.ck-lb__n { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); letter-spacing: .1em; white-space: nowrap; }
+.ck-screw { width: 7px; height: 7px; border-radius: 99px; background: radial-gradient(circle at 34% 30%, #4A4237 0%, #241F19 70%); box-shadow: inset 0 0 0 1px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.05); flex: 0 0 auto; }
+
+/* 输入通道：卡槽式拖放 + VU 电平 */
+.ck-slot {
+  position: relative;
+  border-radius: var(--r-s);
+  background: linear-gradient(180deg, #221E18 0%, #1B1814 100%);
+  box-shadow: inset 0 0 0 1px var(--line), inset 0 2px 10px -6px rgba(0,0,0,.8);
+  padding: 16px 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  min-height: 132px;
+  transition: box-shadow var(--dur-ui) var(--ease-out), background-color var(--dur-ui) var(--ease-out), transform var(--dur-press) var(--ease-out);
+}
+.ck-slot:active { transform: scale(0.99); }
+.ck-slot.is-over { box-shadow: inset 0 0 0 1.5px var(--acc), inset 0 0 22px -6px rgba(196,85,61,.4); background: linear-gradient(180deg, #2A2119 0%, #211B15 100%); }
+.ck-slot .drop__icon { width: 34px; height: 34px; border-radius: 9px; font-size: 17px; background: #2C2721; color: var(--pri); box-shadow: inset 0 0 0 1px var(--line-2); }
+.ck-slot .drop__t { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: var(--ink); }
+.ck-slot .drop__s { font-size: 10.5px; color: var(--ink3); }
+.ck-slot .drop__fmt b { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); background: #2A251F; box-shadow: inset 0 0 0 1px var(--line); }
+.ck-filebar { text-align: left; width: 100%; }
+.ck-filebar__ic { width: 30px; height: 30px; border-radius: 7px; font-size: 15px; background: #2C2721; color: var(--pri); box-shadow: inset 0 0 0 1px var(--line-2); }
+.ck-filebar__n { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+.ck-filebar__m { font-family: var(--mono); font-size: 10px; color: var(--ink3); }
+.s-cellar .filebar__x { width: 26px; height: 26px; font-size: 13px; color: var(--ink3); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+@media (hover: hover) and (pointer: fine) { .s-cellar .filebar__x:hover { color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc); } }
+
+/* VU 电平：示波器式 */
+.ck-vu { display: flex; gap: 8px; align-items: flex-end; }
+.ck-vu__col { flex: 1 1 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ck-vu__bar { position: relative; height: 74px; border-radius: 3px; background: #171410; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.ck-vu__fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%; background: linear-gradient(0deg, #7FA86B 0%, #C9B24A 62%, var(--acc) 92%); transition: height 120ms linear; }
+.ck-vu__tick { position: absolute; left: 0; right: 0; height: 1px; background: rgba(0,0,0,.42); }
+.ck-vu__n { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--ink3); text-align: center; text-transform: uppercase; }
+.ck-scope { position: relative; height: 46px; border-radius: 3px; background: #100E0C; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.ck-scope canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ck-scope__g { position: absolute; inset: 0; background-image: linear-gradient(rgba(214,180,120,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(214,180,120,.07) 1px, transparent 1px); background-size: 100% 11.5px, 15.3px 100%; pointer-events: none; }
+
+/* 模式：四联旋钮式选择（分段 detent） */
+.ck-modes { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.ck-mode {
+  position: relative;
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 11px 11px 12px;
+  border-radius: var(--r-s);
+  background: linear-gradient(180deg, #2A251E 0%, #221E18 100%);
+  box-shadow: inset 0 0 0 1px var(--line), 0 2px 5px -3px rgba(0,0,0,.6);
+  text-align: left;
+  transition: background-color var(--dur-ui) var(--ease-out), box-shadow var(--dur-ui) var(--ease-out), transform var(--dur-press) var(--ease-out);
+}
+.ck-mode:active { transform: scale(0.97); }
+.ck-mode[aria-selected="true"] { background: linear-gradient(180deg, #35301F 0%, #2A2519 100%); box-shadow: inset 0 0 0 1px rgba(224,163,60,.55), 0 0 16px -6px rgba(224,163,60,.4); }
+.ck-mode__knob { position: relative; width: 26px; height: 26px; border-radius: 99px; background: radial-gradient(circle at 36% 30%, #4C4436 0%, #221E18 72%); box-shadow: inset 0 0 0 1px rgba(214,180,120,.28), 0 2px 4px -1px rgba(0,0,0,.7); }
+.ck-mode__knob::after { content: ""; position: absolute; left: 50%; top: 3px; width: 1.5px; height: 8px; margin-left: -.75px; border-radius: 2px; background: var(--ink2); transform-origin: 50% 10px; transform: rotate(-38deg); transition: transform var(--dur-ui) var(--ease-out), background-color var(--dur-ui) var(--ease-out); }
+.ck-mode[aria-selected="true"] .ck-mode__knob::after { background: var(--pri); transform: rotate(28deg); }
+.ck-mode__t { font-size: 12px; font-weight: 600; color: var(--ink); letter-spacing: .005em; line-height: 1.3; }
+.ck-mode__d { font-size: 10px; color: var(--ink3); line-height: 1.45; }
+.ck-mode[aria-selected="true"] .ck-mode__d { color: var(--ink2); }
+.ck-mode__n { position: absolute; top: 10px; right: 11px; font-family: var(--mono); font-size: 9.5px; color: var(--ink3); letter-spacing: .06em; }
+.ck-mode[aria-selected="true"] .ck-mode__n { color: var(--pri); }
+
+/* 参数排阵：刻度线分行的控制面板 */
+.ck-params { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 0 22px; }
+.ck-p { min-width: 0; padding: 9px 0 8px; border-bottom: 1px solid var(--line); }
+.ck-p__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ck-p__l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-p__v { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--pri); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ck-p__scale { position: relative; height: 9px; margin-top: 3px; background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 7px); }
+.ck-p__scale i { position: absolute; top: 1px; width: 1px; height: 7px; background: var(--pri); transition: left 140ms var(--ease-out); }
+.s-cellar .rng::-webkit-slider-runnable-track { height: 2px; }
+.s-cellar .rng::-webkit-slider-thumb { width: 9px; height: 17px; margin-top: -7.5px; border-radius: 2px; background: linear-gradient(180deg, #F0D08A 0%, #C08A2A 100%); box-shadow: 0 1px 3px rgba(0,0,0,.7), inset 0 0 0 1px rgba(0,0,0,.35); }
+.s-cellar .rng::-moz-range-thumb { border-radius: 2px; }
+.s-cellar .num { border: 0; background: #14120F; color: var(--pri); font-family: var(--mono); font-size: 12px; font-weight: 600; height: 24px; width: 58px; box-shadow: inset 0 0 0 1px var(--line-2); }
+.s-cellar .num:focus { box-shadow: inset 0 0 0 1px var(--pri); }
+.s-cellar .tog { background: #14120F; box-shadow: inset 0 0 0 1px var(--line-2); }
+.s-cellar .tog[aria-checked="true"] { background: rgba(224,163,60,.24); }
+.s-cellar .tog::after { background: linear-gradient(180deg, #F0D08A 0%, #C08A2A 100%); }
+.s-cellar .togrow { display: flex; align-items: center; gap: 8px; }
+.s-cellar .togrow span { font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink3); }
+.s-cellar .adv__trg { color: var(--ink2); font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+@media (hover: hover) and (pointer: fine) { .s-cellar .adv__trg:hover { color: var(--pri); } }
+.s-cellar .adv__cv { color: var(--ink3); }
+.s-cellar .adv__clip { border-top: 1px dashed var(--line); }
+.s-cellar .adv__pad { padding-top: 4px; }
+
+/* 传输 / 进度：分段 LED */
+.ck-transport { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ck-transport__now { font-family: var(--mono); font-size: 12px; color: var(--ink); letter-spacing: .02em; white-space: nowrap; }
+.ck-transport__pc { margin-left: auto; font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--pri); font-variant-numeric: tabular-nums; letter-spacing: -.01em; line-height: 1; }
+.ck-transport__pc small { font-size: 11px; color: var(--ink3); margin-left: 2px; }
+.s-cellar .stg__i { opacity: .40; }
+.s-cellar .stg__i.is-done, .s-cellar .stg__i.is-now { opacity: 1; }
+.s-cellar .stg__i + .stg__i::before { background-image: repeating-linear-gradient(90deg, var(--line-2) 0 3px, transparent 3px 6px); background-color: transparent; height: 1px; }
+.s-cellar .stg__d { border-radius: 1px; background: var(--ink3); }
+.s-cellar .stg__i.is-now .stg__d { background: var(--acc); box-shadow: 0 0 8px rgba(196,85,61,.8); transform: scale(1.35); }
+.s-cellar .stg__i.is-done .stg__d { background: var(--ok); }
+.s-cellar .stg__t { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink2); }
+.s-cellar .stg__i.is-now .stg__t { color: var(--ink); }
+.s-cellar .pbar { background: #14120F; box-shadow: inset 0 0 0 1px var(--line); height: 8px; border-radius: 2px; }
+.s-cellar .pbar__f { background: repeating-linear-gradient(90deg, var(--pri) 0 6px, #2A2519 6px 8px); border-radius: 2px; }
+
+/* 结果：磁带标签 */
+.ck-res { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 13px 15px; border-radius: var(--r-s); background: linear-gradient(180deg, #2A251E 0%, #221E18 100%); box-shadow: inset 0 0 0 1px var(--line); }
+.ck-res__reel { position: relative; width: 42px; height: 42px; border-radius: 99px; background: radial-gradient(circle at 50% 50%, #1A1713 0 22%, #2E2921 22% 46%, #16130F 46% 100%); box-shadow: inset 0 0 0 1px var(--line-2); flex: 0 0 auto; }
+.ck-res__reel::after { content: ""; position: absolute; inset: 0; border-radius: 99px; background-image: conic-gradient(from 0deg, rgba(224,163,60,.5) 0 6deg, transparent 6deg 60deg); }
+.s-cellar .res__hd { color: var(--ok); }
+.s-cellar .res__t { font-family: var(--mono); color: var(--ok); }
+.s-cellar .res__fn { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.ck-res__stats { gap: 22px; }
+.s-cellar .res__st { padding-right: 22px; border-right: 1px solid var(--line); }
+.s-cellar .res__st:last-of-type { border-right: 0; }
+.s-cellar .res__sv { font-family: var(--mono); font-size: 18px; color: var(--pri); }
+.s-cellar .res__sk { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); }
+.s-cellar .btn--pri { background: linear-gradient(180deg, #E8AE48 0%, #C4862A 100%); color: #211B10; font-family: var(--mono); letter-spacing: .05em; box-shadow: 0 2px 0 #8A5F1C, 0 8px 18px -8px rgba(224,163,60,.6); }
+.s-cellar .btn--pri:active { background: linear-gradient(180deg, #D89C3C 0%, #B2781F 100%); box-shadow: 0 1px 0 #8A5F1C, 0 4px 10px -6px rgba(224,163,60,.5); }
+.s-cellar .btn--ghost { color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line-2); background: #221E18; font-family: var(--mono); }
+@media (hover: hover) and (pointer: fine) { .s-cellar .btn--ghost:hover { color: var(--ink); box-shadow: inset 0 0 0 1px var(--pri); } }
+.s-cellar .btn--ico { color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); background: #221E18; }
+@media (hover: hover) and (pointer: fine) { .s-cellar .btn--ico:hover { color: var(--pri); box-shadow: inset 0 0 0 1px var(--pri); } }
+.s-cellar .tip::after { background: #0E0C0A; color: var(--pri); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; box-shadow: 0 6px 18px -6px rgba(0,0,0,.8), inset 0 0 0 1px var(--line); }
+/* ==================================================================================
+   SKIN 3 · ABYSS 深海声谱 — 频谱为绝对主角 / 界面退为半透明浮层 / 深靛蓝非纯黑
+   ================================================================================== */
+[data-skin="abyss"] {
+  --bg: #070C18; --bg2: #0A1424;
+  --glass: rgba(12,24,42,.58);
+  --glass-2: rgba(9,18,33,.72);
+  --line: rgba(126,147,174,.20);
+  --line-2: rgba(126,147,174,.34);
+  --ink: #DCE8F5; --ink2: #7E93AE; --ink3: #56698A;
+  --pri: #2BD9C4; --acc: #3B82F6; --ok: #46C2A0;
+  --trk: rgba(126,147,174,.24); --thb: #2BD9C4; --focus: #2BD9C4;
+  --sb: rgba(126,147,174,.26); --sb-h: rgba(126,147,174,.5);
+  --sh-2: 0 20px 46px -18px rgba(0,0,0,.8);
+  --sh-pop: 0 22px 50px -16px rgba(0,0,0,.82), 0 0 0 1px rgba(126,147,174,.18);
+  --mono: var(--font-mono);
+  color-scheme: dark;
+}
+.s-abyss { background: linear-gradient(172deg, #08101F 0%, var(--bg) 46%, #060A14 100%); color: var(--ink); }
+.s-abyss .win__bar { background: rgba(7,12,24,.5); color: var(--ink3); }
+.s-abyss .win__dot { background: var(--pri); box-shadow: 0 0 10px rgba(43,217,196,.55); }
+.s-abyss .win__name { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+.s-abyss .pg__scroll { position: relative; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* 频谱舞台：全幅，界面浮于其上 */
+.ab-stage { position: absolute; inset: 0; }
+.ab-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ab-veil { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(120% 78% at 50% 8%, rgba(43,217,196,.055) 0%, rgba(7,12,24,0) 58%), linear-gradient(180deg, rgba(7,12,24,.30) 0%, rgba(7,12,24,0) 26%, rgba(7,12,24,0) 52%, rgba(6,10,20,.80) 100%); }
+.ab-rail { position: absolute; left: 0; right: 0; height: 1px; background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10px); }
+
+/* 空态：声谱中央浮一个玻璃投放舱 */
+.ab-drop {
+  position: absolute; left: 50%; top: 46%;
+  transform: translate(-50%,-50%);
+  width: min(560px, 76%);
+  min-height: 216px;
+  border-radius: var(--r-l);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(26px) saturate(1.3);
+  backdrop-filter: blur(26px) saturate(1.3);
+  box-shadow: var(--sh-2), inset 0 0 0 1px rgba(126,147,174,.18);
+}
+.ab-drop.is-over { box-shadow: var(--sh-2), inset 0 0 0 1.5px var(--pri), 0 0 44px -12px rgba(43,217,196,.42); }
+.ab-drop .drop__ring { box-shadow: 0 0 0 4px rgba(43,217,196,.14); }
+.ab-drop .drop__icon { background: rgba(43,217,196,.10); color: var(--pri); box-shadow: inset 0 0 0 1px rgba(43,217,196,.28); }
+.ab-drop.is-over .drop__icon { color: #7BF0E1; }
+.ab-drop .drop__t { color: var(--ink); }
+.ab-drop .drop__s { color: var(--ink2); }
+.ab-drop .drop__fmt b { font-family: var(--mono); font-size: 10px; color: var(--ink2); background: rgba(126,147,174,.10); letter-spacing: .05em; }
+.ab-filebar__ic { background: rgba(43,217,196,.12); color: var(--pri); box-shadow: inset 0 0 0 1px rgba(43,217,196,.3); }
+.ab-filebar__n { font-family: var(--mono); color: var(--ink); font-size: 13px; }
+.ab-filebar__m { font-family: var(--mono); color: var(--ink3); }
+.s-abyss .filebar__x { width: 30px; height: 30px; font-size: 14px; color: var(--ink2); background: rgba(126,147,174,.10); }
+@media (hover: hover) and (pointer: fine) { .s-abyss .filebar__x:hover { color: var(--ink); background: rgba(126,147,174,.2); } }
+
+/* HUD 顶部条：模式 + 标题 */
+.ab-hud {
+  position: absolute; left: 22px; right: 22px; top: 18px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  pointer-events: none;
+}
+.ab-hud > * { pointer-events: auto; }
+.ab-hud__t { font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); font-family: var(--font-mono); }
+.ab-hud__sel { width: 300px; }
+.ab-hud__sel .sel__trg {
+  height: 44px; padding: 0 13px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  backdrop-filter: blur(22px) saturate(1.3);
+  box-shadow: var(--sh-2), inset 0 0 0 1px rgba(126,147,174,.18);
+}
+.ab-hud__sel .sel__ic { color: var(--pri); }
+.ab-hud__sel .sel__l2 { color: var(--ink3); }
+.ab-hud__sel .sel__cv { color: var(--ink3); }
+.s-abyss .sel__pop { top: calc(100% + 10px); left: 0; right: 0; }
+.s-abyss .sel__popin { background: var(--glass-2); -webkit-backdrop-filter: blur(30px) saturate(1.4); backdrop-filter: blur(30px) saturate(1.4); box-shadow: var(--sh-pop); }
+.s-abyss .sel__opt + .sel__opt::before { background: var(--line); }
+.s-abyss .sel__opt { color: var(--ink); }
+.s-abyss .sel__opt s { color: var(--ink3); }
+@media (hover: hover) and (pointer: fine) { .s-abyss .sel__opt:hover { background: rgba(43,217,196,.07); } }
+.s-abyss .sel__opt[aria-selected="true"] { color: var(--pri); }
+.s-abyss .sel__opt[aria-selected="true"] i { color: var(--pri); }
+.s-abyss .sel__opt u { color: var(--pri); }
+.ab-hud__tag { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 99px; background: var(--glass); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px rgba(126,147,174,.18); font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); }
+.ab-hud__tag b { width: 6px; height: 6px; border-radius: 99px; background: var(--ink3); transition: background-color var(--dur-ui) var(--ease-out), box-shadow var(--dur-ui) var(--ease-out); }
+.ab-hud__tag.is-live b { background: var(--pri); box-shadow: 0 0 9px rgba(43,217,196,.85); }
+.ab-hud__tag.is-done b { background: var(--ok); box-shadow: 0 0 9px rgba(70,194,160,.7); }
+
+/* 底部控制层：参数 + 传输 + 结果 */
+.ab-deck {
+  position: absolute; left: 22px; right: 22px; bottom: 20px;
+  border-radius: var(--r-l);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  backdrop-filter: blur(28px) saturate(1.35);
+  box-shadow: var(--sh-2), inset 0 0 0 1px rgba(126,147,174,.18);
+  padding: 15px 18px 16px;
+  display: flex; flex-direction: column; gap: 13px;
+}
+.ab-params { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px 18px; }
+.ab-p { min-width: 0; }
+.ab-p__top { display: flex; align-items: baseline; justify-content: space-between; gap: 7px; }
+.ab-p__l { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ab-p__v { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--pri); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.s-abyss .rng::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(7,12,24,.7), 0 0 10px -1px rgba(43,217,196,.6); }
+.s-abyss .num { border: 0; background: rgba(7,12,24,.5); color: var(--pri); font-family: var(--mono); font-size: 11.5px; font-weight: 600; height: 25px; width: 58px; box-shadow: inset 0 0 0 1px var(--line-2); }
+.s-abyss .num:focus { box-shadow: inset 0 0 0 1px var(--pri); }
+.s-abyss .tog { background: rgba(126,147,174,.24); }
+.s-abyss .tog[aria-checked="true"] { background: var(--pri); }
+.s-abyss .togrow { display: flex; align-items: center; gap: 8px; }
+.s-abyss .togrow span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+.s-abyss .adv__trg { color: var(--ink2); font-family: var(--font-mono); font-size: 10px; letter-spacing: .11em; text-transform: uppercase; }
+@media (hover: hover) and (pointer: fine) { .s-abyss .adv__trg:hover { color: var(--pri); } }
+.s-abyss .adv__cv { color: var(--ink3); }
+.s-abyss .adv__clip { border-top: 1px solid var(--line); }
+.s-abyss .adv__pad { padding-top: 13px; }
+.ab-run { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ab-run__row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ab-run__now { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink); letter-spacing: .04em; white-space: nowrap; }
+.ab-run__pc { margin-left: auto; font-family: var(--font-mono); font-size: 17px; font-weight: 700; color: var(--pri); font-variant-numeric: tabular-nums; line-height: 1; }
+.s-abyss .stg__i { opacity: .38; }
+.s-abyss .stg__i.is-done, .s-abyss .stg__i.is-now { opacity: 1; }
+.s-abyss .stg__i + .stg__i::before { background-image: linear-gradient(90deg, var(--line-2) 0 50%, transparent 50% 100%); background-size: 6px 1px; background-color: transparent; }
+.s-abyss .stg__d { background: var(--ink3); }
+.s-abyss .stg__i.is-now .stg__d { background: var(--acc); box-shadow: 0 0 10px rgba(59,130,246,.9); transform: scale(1.4); }
+.s-abyss .stg__i.is-done .stg__d { background: var(--pri); }
+.s-abyss .stg__t { font-family: var(--font-mono); font-size: 10px; letter-spacing: .07em; color: var(--ink2); }
+.s-abyss .stg__i.is-now .stg__t { color: var(--ink); }
+.s-abyss .pbar { background: rgba(7,12,24,.62); box-shadow: inset 0 0 0 1px var(--line); height: 3px; }
+.s-abyss .pbar__f { background: linear-gradient(90deg, #1E7FA8 0%, var(--pri) 55%, var(--acc) 100%); box-shadow: 0 0 12px -1px rgba(43,217,196,.55); }
+.ab-res { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ab-res__id { min-width: 0; flex: 1 1 220px; }
+.s-abyss .res__hd { color: var(--ok); }
+.s-abyss .res__t { font-family: var(--mono); color: var(--ok); }
+.s-abyss .res__fn { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
+.ab-res__stats { gap: 20px; }
+.s-abyss .res__st { padding-right: 20px; border-right: 1px solid var(--line); }
+.s-abyss .res__st:last-of-type { border-right: 0; }
+.s-abyss .res__sv { font-family: var(--font-mono); font-size: 18px; color: var(--pri); }
+.s-abyss .res__sk { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink3); }
+.s-abyss .btn--pri { background: var(--pri); color: #04211E; font-weight: 620; box-shadow: 0 0 22px -6px rgba(43,217,196,.6); }
+@media (hover: hover) and (pointer: fine) { .s-abyss .btn--pri:hover { background: #4AE7D4; } }
+.s-abyss .btn--pri:active { background: #23C4B1; }
+.s-abyss .btn--ghost { color: var(--ink2); background: rgba(126,147,174,.10); box-shadow: inset 0 0 0 1px var(--line); }
+@media (hover: hover) and (pointer: fine) { .s-abyss .btn--ghost:hover { color: var(--ink); background: rgba(126,147,174,.18); } }
+.s-abyss .btn--ico { color: var(--ink2); background: rgba(126,147,174,.10); box-shadow: inset 0 0 0 1px var(--line); }
+@media (hover: hover) and (pointer: fine) { .s-abyss .btn--ico:hover { color: var(--pri); box-shadow: inset 0 0 0 1px rgba(43,217,196,.5); } }
+.s-abyss .tip::after { background: #0B1A2C; color: var(--pri); font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; box-shadow: 0 8px 22px -8px rgba(0,0,0,.85), inset 0 0 0 1px rgba(43,217,196,.25); }
+
+/* ==================================================================================
+   SKIN 4 · PAPER 素纸墨青 — 纸白 / 墨青线条 / 朱砂点 / 零阴影零玻璃
+   ================================================================================== */
+[data-skin="paper"] {
+  --paper: #F7F5EF; --paper-2: #EFEDE5; --paper-3: #E7E4DA;
+  --ink: #1C3A44; --ink2: #4A6670; --ink3: #8A9AA0;
+  --line: rgba(28,58,68,.20); --line-2: rgba(28,58,68,.34);
+  --pri: #1C3A44; --acc: #C8452F; --ok: #2E6B57;
+  --trk: rgba(28,58,68,.20); --thb: #1C3A44; --focus: #C8452F;
+  --sb: rgba(28,58,68,.24); --sb-h: rgba(28,58,68,.42);
+  --mono: var(--font-mono);
+  color-scheme: light;
+}
+.s-paper { background: var(--paper); color: var(--ink); }
+.s-paper .win__bar { background: var(--paper-2); color: var(--ink2); }
+.s-paper .win__dot { background: var(--acc); }
+.s-paper .win__name { font-size: 11.5px; letter-spacing: .04em; }
+.s-paper .pg__scroll { padding: 0; display: flex; }
+/* 左侧步骤索引栏 */
+.pp-nav { flex: 0 0 208px; border-right: 1px solid var(--line); padding: 22px 20px; display: flex; flex-direction: column; gap: 0; }
+.pp-nav__brand { font-family: var(--font-serif); font-size: 15px; font-weight: 600; letter-spacing: .04em; line-height: 1.4; }
+.pp-nav__rule { height: 1px; background: var(--line-2); margin: 13px 0 15px; }
+.pp-nav__step { display: flex; gap: 11px; padding: 9px 0; align-items: flex-start; }
+.pp-nav__n { font-family: var(--mono); font-size: 10px; color: var(--ink3); letter-spacing: .06em; padding-top: 2px; flex: 0 0 auto; }
+.pp-nav__t { font-size: 12.5px; color: var(--ink3); line-height: 1.5; }
+.pp-nav__step.is-now .pp-nav__n { color: var(--acc); }
+.pp-nav__step.is-now .pp-nav__t { color: var(--ink); font-weight: 600; }
+.pp-nav__step.is-done .pp-nav__n { color: var(--ok); }
+.pp-nav__step.is-done .pp-nav__t { color: var(--ink2); }
+.pp-nav__mk { width: 5px; height: 5px; margin-top: 6px; flex: 0 0 auto; background: var(--ink3); border-radius: 99px; }
+.pp-nav__step.is-now .pp-nav__mk { background: var(--acc); }
+.pp-nav__step.is-done .pp-nav__mk { background: var(--ok); }
+.pp-nav__ft { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 9.5px; color: var(--ink3); letter-spacing: .08em; line-height: 1.7; text-transform: uppercase; }
+
+/* 右侧正文 */
+.pp-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.pp-head { padding: 22px 30px 0; display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.pp-h { flex: 1 1 300px; min-width: 0; }
+.pp-h1 { font-family: var(--font-serif); font-size: 25px; font-weight: 600; letter-spacing: -.01em; line-height: 1.24; }
+.pp-lede { font-size: 12px; color: var(--ink2); margin-top: 7px; line-height: 1.6; max-width: 60ch; }
+.pp-head__meta { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); letter-spacing: .1em; text-transform: uppercase; line-height: 1.9; text-align: right; }
+.pp-hr { height: 1px; background: var(--ink); opacity: .5; margin: 18px 30px 0; }
+.pp-hr--thin { background: var(--line-2); opacity: 1; margin: 5px 30px 0; }
+.pp-body { flex: 1 1 auto; min-height: 0; padding: 20px 30px 26px; display: flex; flex-direction: column; gap: 20px; }
+
+/* 版框式拖放区：四角标记 + 细线框，无阴影 */
+.pp-drop { position: relative; min-height: 176px; border: 1px solid var(--line-2); border-radius: 2px; background: var(--paper-2); }
+.pp-drop::before, .pp-drop::after { content: ""; position: absolute; width: 9px; height: 9px; pointer-events: none; }
+.pp-drop::before { left: -1px; top: -1px; border-left: 1.5px solid var(--ink); border-top: 1.5px solid var(--ink); }
+.pp-drop::after { right: -1px; bottom: -1px; border-right: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+.pp-drop.is-over { border-color: var(--acc); background: #F1EFE6; }
+.pp-drop .drop__icon { width: 38px; height: 38px; border-radius: 2px; font-size: 18px; background: var(--paper); color: var(--ink); border: 1px solid var(--line-2); }
+.pp-drop.is-over .drop__icon { color: var(--acc); border-color: var(--acc); }
+.pp-drop .drop__t { font-family: var(--font-serif); font-size: 16px; font-weight: 600; color: var(--ink); }
+.pp-drop .drop__s { font-size: 11.5px; color: var(--ink2); }
+.pp-drop .drop__fmt b { font-family: var(--mono); font-size: 9.5px; color: var(--ink2); border: 1px solid var(--line); letter-spacing: .06em; text-transform: uppercase; }
+.pp-filebar__ic { width: 34px; height: 34px; border-radius: 2px; font-size: 16px; background: var(--paper); color: var(--ink); border: 1px solid var(--line-2); }
+.pp-filebar__n { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); }
+.pp-filebar__m { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); }
+.s-paper .filebar__x { width: 26px; height: 26px; font-size: 13px; color: var(--ink2); border: 1px solid var(--line-2); border-radius: 2px; }
+@media (hover: hover) and (pointer: fine) { .s-paper .filebar__x:hover { color: var(--acc); border-color: var(--acc); } }
+
+/* 模式：细线标签页（视图切换形态）+ 说明 */
+.pp-modes { display: flex; gap: 0; border-bottom: 1px solid var(--ink); }
+.pp-mode { position: relative; padding: 9px 16px 10px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color var(--dur-ui) var(--ease-out), border-color var(--dur-ui) var(--ease-out), background-color var(--dur-ui) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.pp-mode:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) { .pp-mode:hover { color: var(--ink); background: rgba(28,58,68,.045); } }
+.pp-mode[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--acc); }
+.pp-mode[aria-selected="true"]::after { content: ""; position: absolute; left: 16px; right: 16px; bottom: 6px; height: 2px; background: var(--acc); }
+.pp-modes__sp { flex: 1 1 auto; }
+.pp-selwrap { flex: 0 0 258px; padding-bottom: 6px; }
+.pp-selwrap .sel__trg { height: 38px; padding: 0 11px; border: 1px solid var(--line-2); border-radius: 2px; background: var(--paper); }
+.pp-selwrap .sel__ic { color: var(--acc); }
+.pp-selwrap .sel__l1 { font-family: var(--font-mono); font-size: 11.5px; }
+.pp-selwrap .sel__l2 { font-size: 10px; color: var(--ink3); }
+.pp-selwrap .sel__cv { color: var(--ink3); }
+.s-paper .sel__pop { top: calc(100% + 6px); left: 0; right: 0; }
+.s-paper .sel__popin { background: var(--paper); border: 1px solid var(--ink); border-radius: 2px; box-shadow: 5px 5px 0 rgba(28,58,68,.10); }
+.s-paper .sel__opt + .sel__opt::before { background: var(--line); }
+.s-paper .sel__opt { color: var(--ink); padding: 9px 12px; }
+.s-paper .sel__opt s { color: var(--ink3); }
+@media (hover: hover) and (pointer: fine) { .s-paper .sel__opt:hover { background: rgba(28,58,68,.05); } }
+.s-paper .sel__opt[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.s-paper .sel__opt[aria-selected="true"] i { color: var(--acc); }
+.s-paper .sel__opt u { color: var(--acc); font-family: var(--font-mono); font-size: 11px; }
+
+/* 参数表：真表格，栏线分隔 */
+.pp-table { border-top: 1px solid var(--line-2); }
+.pp-thead { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(0,2.2fr) 74px; gap: 16px; padding: 7px 2px; border-bottom: 1px solid var(--line); }
+.pp-thead span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--ink3); }
+.pp-thead span:last-child { text-align: right; }
+.pp-trow { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(0,2.2fr) 74px; gap: 16px; align-items: center; padding: 9px 2px; border-bottom: 1px solid var(--line); animation: rowIn var(--dur-ui) var(--ease-out) both; }
+.pp-trow:nth-child(2) { animation-delay: 0ms; } .pp-trow:nth-child(3) { animation-delay: 40ms; }
+.pp-trow:nth-child(4) { animation-delay: 80ms; } .pp-trow:nth-child(5) { animation-delay: 120ms; }
+.pp-trow:nth-child(6) { animation-delay: 160ms; } .pp-trow:nth-child(7) { animation-delay: 200ms; }
+@keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.pp-tl { min-width: 0; }
+.pp-tl b { display: block; font-size: 12.5px; font-weight: 560; color: var(--ink); }
+.pp-tl span { display: block; font-size: 10.5px; color: var(--ink3); margin-top: 2px; line-height: 1.45; }
+.pp-tv { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.s-paper .rng::-webkit-slider-runnable-track { height: 1px; }
+.s-paper .rng::-webkit-slider-thumb { width: 9px; height: 9px; margin-top: -4px; border-radius: 99px; background: var(--paper); box-shadow: 0 0 0 1.5px var(--ink); }
+.s-paper .rng:active::-webkit-slider-thumb { background: var(--acc); box-shadow: 0 0 0 1.5px var(--acc); }
+.s-paper .num { border: 0; border-bottom: 1px solid var(--line-2); border-radius: 0; background: transparent; color: var(--ink); font-family: var(--font-mono); font-size: 12px; font-weight: 600; height: 24px; width: 100%; }
+.s-paper .num:focus { outline: none; border-bottom-color: var(--acc); box-shadow: none; }
+.s-paper .tog { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); width: 32px; height: 18px; }
+.s-paper .tog::after { background: var(--ink3); }
+.s-paper .tog[aria-checked="true"] { box-shadow: inset 0 0 0 1px var(--ink); background: transparent; }
+.s-paper .tog[aria-checked="true"]::after { background: var(--acc); }
+.s-paper .togrow { display: flex; align-items: center; gap: 8px; }
+.s-paper .togrow span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink3); }
+.s-paper .adv__trg { color: var(--ink2); font-family: var(--font-mono); font-size: 10px; letter-spacing: .11em; text-transform: uppercase; }
+@media (hover: hover) and (pointer: fine) { .s-paper .adv__trg:hover { color: var(--acc); } }
+.s-paper .adv__cv { color: var(--ink3); }
+.s-paper .adv__clip { border-top: 1px solid var(--line); }
+.s-paper .adv__pad { padding-top: 12px; }
+
+/* 传输：细线进度 + 步骤索引高亮 */
+.pp-transport { display: flex; flex-direction: column; gap: 10px; }
+.pp-transport__top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.pp-transport__now { font-family: var(--font-serif); font-size: 14px; font-weight: 600; color: var(--ink); }
+.pp-transport__pc { margin-left: auto; font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--acc); font-variant-numeric: tabular-nums; line-height: 1; }
+.s-paper .stg__i { opacity: .4; }
+.s-paper .stg__i.is-done, .s-paper .stg__i.is-now { opacity: 1; }
+.s-paper .stg__i + .stg__i::before { background: var(--line-2); }
+.s-paper .stg__d { background: var(--ink3); border-radius: 0; }
+.s-paper .stg__i.is-now .stg__d { background: var(--acc); transform: scale(1.4); }
+.s-paper .stg__i.is-done .stg__d { background: var(--ok); }
+.s-paper .stg__t { font-family: var(--font-mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink2); }
+.s-paper .stg__i.is-now .stg__t { color: var(--ink); font-weight: 600; }
+.s-paper .pbar { background: rgba(28,58,68,.10); height: 2px; border-radius: 0; }
+.s-paper .pbar__f { background: var(--acc); border-radius: 0; }
+
+/* 结果：版权页式，细框 + 表格数据 */
+.pp-res { border: 1px solid var(--ink); border-radius: 2px; padding: 15px 17px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--paper-2); }
+.pp-res__top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.s-paper .res__hd { color: var(--ok); }
+.s-paper .res__t { font-family: var(--font-mono); color: var(--ok); }
+.s-paper .res__fn { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
+.pp-res__stats { gap: 0; border-top: 1px solid var(--line-2); padding-top: 12px; }
+.s-paper .res__st { flex: 1 1 0; padding: 0 18px; border-right: 1px solid var(--line); }
+.s-paper .res__st:first-of-type { padding-left: 0; }
+.s-paper .res__st:last-of-type { border-right: 0; }
+.s-paper .res__sv { font-family: var(--font-serif); font-size: 21px; color: var(--ink); }
+.s-paper .res__sk { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); }
+.s-paper .btn--pri { background: var(--acc); color: #FFF8F4; border-radius: 2px; }
+@media (hover: hover) and (pointer: fine) { .s-paper .btn--pri:hover { background: #B03A26; } }
+.s-paper .btn--pri:active { background: #9C3320; }
+.s-paper .btn--ghost { color: var(--ink2); border: 1px solid var(--line-2); border-radius: 2px; }
+@media (hover: hover) and (pointer: fine) { .s-paper .btn--ghost:hover { color: var(--ink); border-color: var(--ink); } }
+.s-paper .btn--ico { color: var(--ink2); border: 1px solid var(--line-2); border-radius: 2px; }
+@media (hover: hover) and (pointer: fine) { .s-paper .btn--ico:hover { color: var(--acc); border-color: var(--acc); } }
+.s-paper .tip::after { background: var(--ink); color: var(--paper); font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -462,10 +1063,1043 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
           <button class="win__btn win__btn--close" aria-label="关闭" data-icon="x"></button>
         </div>
       </div>
-      <div class="skin__in" id="skinHost"><!--@@SKINS@@--></div>
+      <div class="skin__in" id="skinHost"><!-- ══════════════════════════ SKIN 1 · FROST ══════════════════════════ -->
+<section class="skin s-frost" data-skin="frost" aria-label="霜蓝玻璃方向">
+  <div class="pg">
+    <div class="pg__scroll scroll">
+      <div class="fr-top">
+        <div class="fr-h">
+          <h1 class="fr-h1">歌曲扒谱</h1>
+          <p class="fr-sub">放入一个音频文件，自动分离人声与伴奏并生成可编辑的双轨 MIDI</p>
+        </div>
+        <div class="fr-selpick sel" data-sel>
+          <button class="sel__trg" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <i class="sel__ic" data-ic="layers"></i>
+            <span class="sel__tx"><span class="sel__l1" data-sel-label>全自动扒谱</span><span class="sel__l2" data-sel-desc>人声 + 伴奏双轨</span></span>
+            <i class="sel__cv" data-ic="chev"></i>
+          </button>
+          <div class="sel__pop"><div class="sel__popin" data-sel-list role="listbox"></div></div>
+        </div>
+      </div>
+
+      <div class="fr-drop drop" data-drop tabindex="0" role="button" aria-label="拖入或点击选择音频文件">
+        <span class="drop__ring"></span>
+        <div class="drop__empty">
+          <div class="drop__icon" data-ic="upload"></div>
+          <p class="drop__t">把音频拖到这里</p>
+          <p class="drop__s">或点击此处在本机选择文件 · 单文件建议 ≤ 60MB</p>
+          <p class="drop__fmt"><b>WAV</b><b>MP3</b><b>FLAC</b><b>M4A</b><b>OGG</b></p>
+        </div>
+        <div class="filebar fr-filebar" data-filebar>
+          <div class="filebar__ic" data-ic="file"></div>
+          <div class="filebar__tx">
+            <p class="filebar__n" data-file-name>—</p>
+            <p class="filebar__m" data-file-meta>—</p>
+          </div>
+          <button class="btn filebar__x" type="button" data-clear aria-label="移除文件" data-ic="x"></button>
+        </div>
+      </div>
+
+      <div class="fr-console">
+        <div class="fr-params" data-params></div>
+        <div class="adv" data-adv>
+          <button class="adv__trg" type="button" data-adv-toggle aria-expanded="false">
+            <i class="adv__cv" data-ic="chev"></i>高级参数
+            <span style="opacity:.6;font-weight:400">n_peaks / onset / 最小音符时长</span>
+          </button>
+          <div class="adv__wrap"><div class="adv__clip"><div class="fr-params adv__pad" data-adv-panel></div></div></div>
+        </div>
+      </div>
+
+      <div class="fr-run">
+        <div class="fr-run__top">
+          <button class="btn btn--pri" type="button" data-start><i class="btn__ic" data-ic="play"></i>开始扒谱</button>
+          <button class="btn btn--ghost btn--ico tip tip--b" type="button" data-reset aria-label="重置" data-tip="重置全部状态"><i data-ic="reset"></i></button>
+          <span class="fr-run__now" data-now>等待音频文件</span>
+          <span class="fr-run__pc" data-pc></span>
+        </div>
+        <div class="stg" data-stages></div>
+        <div class="pbar"><div class="pbar__f" data-bar></div></div>
+        <div class="fr-res res" data-res>
+          <div class="fr-res__id">
+            <div class="res__hd"><i data-ic="check"></i><span class="res__t">MIDI 已生成</span></div>
+            <p class="res__fn" data-res-name>—</p>
+          </div>
+          <div class="res__stats fr-res__stats">
+            <div class="res__st"><span class="res__sv" data-res-notes>—</span><span class="res__sk">音符数</span></div>
+            <div class="res__st"><span class="res__sv" data-res-tracks>—</span><span class="res__sk">轨数</span></div>
+            <div class="res__st"><span class="res__sv" data-res-dur>—</span><span class="res__sk">时长</span></div>
+          </div>
+          <button class="btn btn--ghost" type="button" data-open><i class="btn__ic" data-ic="folder"></i>打开目录</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ SKIN 2 · CELLAR ══════════════════════════ -->
+<section class="skin s-cellar" data-skin="cellar" aria-label="暗房琥珀方向" hidden>
+  <div class="pg">
+    <div class="pg__scroll scroll">
+      <div class="ck-rack">
+        <!-- 左：输入通道 -->
+        <div class="ck-in">
+          <div class="ck-lb"><i class="ck-screw"></i><span class="ck-lb__t">Input · Ch 1</span><span class="ck-lb__r"></span><span class="ck-lb__n">IN</span></div>
+          <div class="ck-slot drop" data-drop tabindex="0" role="button" aria-label="拖入或点击选择音频文件">
+            <span class="drop__ring"></span>
+            <div class="drop__empty">
+              <div class="drop__icon" data-ic="upload"></div>
+              <p class="drop__t">拖入音频</p>
+              <p class="drop__s">点击选择本机文件</p>
+              <p class="drop__fmt"><b>WAV</b><b>MP3</b><b>FLAC</b></p>
+            </div>
+            <div class="filebar ck-filebar" data-filebar>
+              <div class="filebar__ic" data-ic="file"></div>
+              <div class="filebar__tx">
+                <p class="filebar__n" data-file-name>—</p>
+                <p class="filebar__m" data-file-meta>—</p>
+              </div>
+              <button class="btn filebar__x" type="button" data-clear aria-label="移除文件" data-ic="x"></button>
+            </div>
+          </div>
+          <div class="ck-ticks"></div>
+          <div class="ck-lb"><span class="ck-lb__t">Level</span><span class="ck-lb__r"></span><span class="ck-lb__n">VU</span></div>
+          <div class="ck-vu">
+            <div class="ck-vu__col">
+              <div class="ck-vu__bar" data-vu="0"><div class="ck-vu__fill"></div><i class="ck-vu__tick" style="bottom:20%"></i><i class="ck-vu__tick" style="bottom:40%"></i><i class="ck-vu__tick" style="bottom:60%"></i><i class="ck-vu__tick" style="bottom:80%"></i></div>
+              <span class="ck-vu__n">L</span>
+            </div>
+            <div class="ck-vu__col">
+              <div class="ck-vu__bar" data-vu="1"><div class="ck-vu__fill"></div><i class="ck-vu__tick" style="bottom:20%"></i><i class="ck-vu__tick" style="bottom:40%"></i><i class="ck-vu__tick" style="bottom:60%"></i><i class="ck-vu__tick" style="bottom:80%"></i></div>
+              <span class="ck-vu__n">R</span>
+            </div>
+            <div class="ck-vu__col">
+              <div class="ck-vu__bar" data-vu="2"><div class="ck-vu__fill"></div><i class="ck-vu__tick" style="bottom:20%"></i><i class="ck-vu__tick" style="bottom:40%"></i><i class="ck-vu__tick" style="bottom:60%"></i><i class="ck-vu__tick" style="bottom:80%"></i></div>
+              <span class="ck-vu__n">MID</span>
+            </div>
+          </div>
+          <div class="ck-scope">
+            <div class="ck-scope__g"></div>
+            <canvas data-scope width="440" height="92"></canvas>
+          </div>
+        </div>
+
+        <!-- 右：主机架 -->
+        <div class="ck-main">
+          <div class="ck-lb"><i class="ck-screw"></i><span class="ck-lb__t">Voice · Mode</span><span class="ck-lb__r"></span><span class="ck-lb__n">MODE</span></div>
+          <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+            <div class="sel ck-selpick" data-sel style="flex:0 0 300px">
+              <button class="sel__trg" type="button" aria-haspopup="listbox" aria-expanded="false"
+                      style="height:46px;padding:0 13px;background:linear-gradient(180deg,#2A251E,#221E18);box-shadow:inset 0 0 0 1px var(--line);border-radius:8px">
+                <i class="sel__ic" data-ic="layers" style="color:var(--pri)"></i>
+                <span class="sel__tx"><span class="sel__l1" data-sel-label style="font-family:var(--font-mono);letter-spacing:.03em">全自动扒谱</span><span class="sel__l2" data-sel-desc style="color:var(--ink3)">人声 + 伴奏双轨</span></span>
+                <i class="sel__cv" data-ic="chev" style="color:var(--ink3)"></i>
+              </button>
+              <div class="sel__pop" style="top:calc(100% + 8px);left:0;right:0"><div class="sel__popin" data-sel-list role="listbox" style="background:#26221B;box-shadow:var(--sh-pop)"></div></div>
+            </div>
+            <div class="ck-modes" style="flex:1 1 320px" aria-hidden="true" data-detent></div>
+          </div>
+          <div class="ck-ticks"></div>
+
+          <div class="ck-lb"><span class="ck-lb__t">Patch · Parameters</span><span class="ck-lb__r"></span><span class="ck-lb__n" data-ck-params-label>3 / 6</span></div>
+          <div class="ck-params" data-params></div>
+          <div class="adv" data-adv>
+            <button class="adv__trg" type="button" data-adv-toggle aria-expanded="false">
+              <i class="adv__cv" data-ic="chev"></i>Advanced
+              <span style="opacity:.6;font-weight:400">n_peaks / onset / min-note</span>
+            </button>
+            <div class="adv__wrap"><div class="adv__clip"><div class="ck-params adv__pad" data-adv-panel></div></div></div>
+          </div>
+          <div class="ck-ticks"></div>
+
+          <div class="ck-lb"><span class="ck-lb__t">Transport</span><span class="ck-lb__r"></span><span class="ck-lb__n">RUN</span></div>
+          <div class="ck-transport">
+            <button class="btn btn--pri" type="button" data-start><i class="btn__ic" data-ic="play"></i>RUN 扒谱</button>
+            <button class="btn btn--ghost btn--ico tip tip--b" type="button" data-reset aria-label="重置" data-tip="重置全部状态"><i data-ic="reset"></i></button>
+            <span class="ck-transport__now" data-now>STANDBY · 等待音频文件</span>
+            <span class="ck-transport__pc" data-pc></span>
+          </div>
+          <div class="stg" data-stages></div>
+          <div class="pbar pbar--ind"><div class="pbar__f" data-bar></div></div>
+          <div class="res ck-res" data-res>
+            <div class="ck-res__reel"></div>
+            <div class="fr-res__id">
+              <div class="res__hd"><i data-ic="check"></i><span class="res__t">MIDI WRITTEN</span></div>
+              <p class="res__fn" data-res-name>—</p>
+            </div>
+            <div class="res__stats ck-res__stats">
+              <div class="res__st"><span class="res__sv" data-res-notes>—</span><span class="res__sk">Notes</span></div>
+              <div class="res__st"><span class="res__sv" data-res-tracks>—</span><span class="res__sk">Tracks</span></div>
+              <div class="res__st"><span class="res__sv" data-res-dur>—</span><span class="res__sk">Length</span></div>
+            </div>
+            <button class="btn btn--ghost" type="button" data-open><i class="btn__ic" data-ic="folder"></i>OPEN DIR</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ SKIN 3 · ABYSS ══════════════════════════ -->
+<section class="skin s-abyss" data-skin="abyss" aria-label="深海声谱方向" hidden>
+  <div class="pg">
+    <div class="pg__scroll scroll">
+      <div class="ab-stage"><canvas data-spectrum></canvas><div class="ab-veil"></div></div>
+      <div class="ab-rail" style="top:74px"></div>
+      <div class="ab-rail" style="bottom:236px"></div>
+
+      <div class="ab-hud">
+        <span class="ab-hud__t">Song Transcription</span>
+        <div class="ab-hud__sel sel" data-sel>
+          <button class="sel__trg" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <i class="sel__ic" data-ic="layers"></i>
+            <span class="sel__tx"><span class="sel__l1" data-sel-label>全自动扒谱</span><span class="sel__l2" data-sel-desc>人声 + 伴奏双轨</span></span>
+            <i class="sel__cv" data-ic="chev"></i>
+          </button>
+          <div class="sel__pop"><div class="sel__popin" data-sel-list role="listbox"></div></div>
+        </div>
+        <span class="ab-hud__tag" data-tag><b></b><span data-tag-t>待机 IDLE</span></span>
+      </div>
+
+      <div class="ab-drop drop" data-drop tabindex="0" role="button" aria-label="拖入或点击选择音频文件">
+        <span class="drop__ring"></span>
+        <div class="drop__empty">
+          <div class="drop__icon" data-ic="upload"></div>
+          <p class="drop__t">拖入音频以开始</p>
+          <p class="drop__s">频谱会实时呈现波形与音高轨迹 · 点击可选择本机文件</p>
+          <p class="drop__fmt"><b>WAV</b><b>MP3</b><b>FLAC</b><b>M4A</b></p>
+        </div>
+        <div class="filebar ab-filebar" data-filebar>
+          <div class="filebar__ic" data-ic="file"></div>
+          <div class="filebar__tx">
+            <p class="filebar__n" data-file-name>—</p>
+            <p class="filebar__m" data-file-meta>—</p>
+          </div>
+          <button class="btn filebar__x" type="button" data-clear aria-label="移除文件" data-ic="x"></button>
+        </div>
+      </div>
+
+      <div class="ab-deck">
+        <div class="ab-params" data-params></div>
+        <div class="adv" data-adv>
+          <button class="adv__trg" type="button" data-adv-toggle aria-expanded="false">
+            <i class="adv__cv" data-ic="chev"></i>Advanced
+            <span style="opacity:.6;font-weight:400">n_peaks / onset / min-note</span>
+          </button>
+          <div class="adv__wrap"><div class="adv__clip"><div class="ab-params adv__pad" data-adv-panel></div></div></div>
+        </div>
+        <div class="ab-run">
+          <div class="ab-run__row">
+            <button class="btn btn--pri" type="button" data-start><i class="btn__ic" data-ic="play"></i>开始扒谱</button>
+            <button class="btn btn--ghost btn--ico tip tip--b" type="button" data-reset aria-label="重置" data-tip="重置全部状态"><i data-ic="reset"></i></button>
+            <span class="ab-run__now" data-now>等待音频文件</span>
+            <span class="ab-run__pc" data-pc></span>
+          </div>
+          <div class="stg" data-stages></div>
+          <div class="pbar"><div class="pbar__f" data-bar></div></div>
+          <div class="res ab-res" data-res>
+            <div class="ab-res__id">
+              <div class="res__hd"><i data-ic="check"></i><span class="res__t">MIDI 已生成</span></div>
+              <p class="res__fn" data-res-name>—</p>
+            </div>
+            <div class="res__stats ab-res__stats">
+              <div class="res__st"><span class="res__sv" data-res-notes>—</span><span class="res__sk">音符数</span></div>
+              <div class="res__st"><span class="res__sv" data-res-tracks>—</span><span class="res__sk">轨数</span></div>
+              <div class="res__st"><span class="res__sv" data-res-dur>—</span><span class="res__sk">时长</span></div>
+            </div>
+            <button class="btn btn--ghost" type="button" data-open><i class="btn__ic" data-ic="folder"></i>打开目录</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ SKIN 4 · PAPER ══════════════════════════ -->
+<section class="skin s-paper" data-skin="paper" aria-label="素纸墨青方向" hidden>
+  <div class="pg">
+    <div class="pg__scroll scroll">
+      <div style="display:flex;flex:1 1 auto;min-height:0;width:100%">
+        <nav class="pp-nav">
+          <div class="pp-nav__brand">扒谱<br>工作台</div>
+          <div class="pp-nav__rule"></div>
+          <div class="pp-nav__step is-now" data-nav="0"><span class="pp-nav__n">01</span><i class="pp-nav__mk"></i><span class="pp-nav__t">投入音频源文件</span></div>
+          <div class="pp-nav__step" data-nav="1"><span class="pp-nav__n">02</span><i class="pp-nav__mk"></i><span class="pp-nav__t">设定扒谱模式与参数</span></div>
+          <div class="pp-nav__step" data-nav="2"><span class="pp-nav__n">03</span><i class="pp-nav__mk"></i><span class="pp-nav__t">执行并导出 MIDI</span></div>
+          <div class="pp-nav__ft">Song Transcription<br>Desk Edition<br>MMXXVI</div>
+        </nav>
+
+        <div class="pp-main">
+          <div class="pp-head">
+            <div class="pp-h">
+              <h1 class="pp-h1">歌曲扒谱</h1>
+              <p class="pp-lede">放入一个音频文件，选择扒谱模式并执行。系统将分离人声与伴奏、追踪音高轨迹，输出 MuseScore 可直接打开的 MIDI 文件。</p>
+            </div>
+            <div class="pp-head__meta">MODE / <span data-pp-mode>AUTO</span><br>ENGINE v0.9.4 · LOCAL</div>
+          </div>
+          <div class="pp-hr"></div>
+          <div class="pp-hr pp-hr--thin"></div>
+
+          <div class="pp-body">
+            <div class="pp-modes" role="tablist" data-pp-modes></div>
+            <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+              <div class="pp-selwrap sel" data-sel>
+                <button class="sel__trg" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  <i class="sel__ic" data-ic="layers"></i>
+                  <span class="sel__tx"><span class="sel__l1" data-sel-label>全自动扒谱</span><span class="sel__l2" data-sel-desc>人声 + 伴奏双轨</span></span>
+                  <i class="sel__cv" data-ic="chev"></i>
+                </button>
+                <div class="sel__pop"><div class="sel__popin" data-sel-list role="listbox"></div></div>
+              </div>
+              <p class="pp-lede" style="margin:0;flex:1 1 240px;font-size:11.5px" data-sel-note>双轨输出：人声主旋律轨 + 伴奏和弦轨。</p>
+            </div>
+
+            <div class="pp-drop drop" data-drop tabindex="0" role="button" aria-label="拖入或点击选择音频文件">
+              <span class="drop__ring"></span>
+              <div class="drop__empty">
+                <div class="drop__icon" data-ic="upload"></div>
+                <p class="drop__t">置入音频文件</p>
+                <p class="drop__s">将文件拖入此框，或点击选择 · 支持 WAV / MP3 / FLAC / M4A</p>
+                <p class="drop__fmt"><b>WAV</b><b>MP3</b><b>FLAC</b><b>M4A</b></p>
+              </div>
+              <div class="filebar pp-filebar" data-filebar>
+                <div class="filebar__ic" data-ic="file"></div>
+                <div class="filebar__tx">
+                  <p class="filebar__n" data-file-name>—</p>
+                  <p class="filebar__m" data-file-meta>—</p>
+                </div>
+                <button class="btn filebar__x" type="button" data-clear aria-label="移除文件" data-ic="x"></button>
+              </div>
+            </div>
+
+            <div class="adv" data-adv>
+              <button class="adv__trg" type="button" data-adv-toggle aria-expanded="false">
+                <i class="adv__cv" data-ic="chev"></i>高级参数
+                <span style="opacity:.62;font-weight:400">n_peaks / onset / 最小音符时长</span>
+              </button>
+              <div class="adv__wrap"><div class="adv__clip"><div class="adv__pad" data-adv-panel></div></div></div>
+            </div>
+
+            <div class="pp-table">
+              <div class="pp-thead"><span>参数</span><span>调整</span><span>数值</span></div>
+              <div data-params></div>
+            </div>
+
+            <div class="pp-transport">
+              <div class="pp-transport__top">
+                <button class="btn btn--pri" type="button" data-start><i class="btn__ic" data-ic="play"></i>开始扒谱</button>
+                <button class="btn btn--ghost btn--ico tip tip--b" type="button" data-reset aria-label="重置" data-tip="重置全部状态"><i data-ic="reset"></i></button>
+                <span class="pp-transport__now" data-now>等待音频文件</span>
+                <span class="pp-transport__pc" data-pc></span>
+              </div>
+              <div class="stg" data-stages></div>
+              <div class="pbar"><div class="pbar__f" data-bar></div></div>
+            </div>
+
+            <div class="res pp-res" data-res>
+              <div class="pp-res__top">
+                <div style="min-width:0;flex:1 1 220px">
+                  <div class="res__hd"><i data-ic="check"></i><span class="res__t">MIDI 已生成</span></div>
+                  <p class="res__fn" data-res-name>—</p>
+                </div>
+                <button class="btn btn--ghost" type="button" data-open><i class="btn__ic" data-ic="folder"></i>打开目录</button>
+              </div>
+              <div class="res__stats pp-res__stats">
+                <div class="res__st"><span class="res__sv" data-res-notes>—</span><span class="res__sk">音符数 Notes</span></div>
+                <div class="res__st"><span class="res__sv" data-res-tracks>—</span><span class="res__sk">轨数 Tracks</span></div>
+                <div class="res__st"><span class="res__sv" data-res-dur>—</span><span class="res__sk">时长 Length</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section></div>
     </div>
   </div>
 </div>
-<script>/*@@JS@@*/</script>
+<script>/* =============================================================================
+   引擎：状态机 + 四方向渲染器 + 画布视觉
+   —— 零依赖。四个方向共享同一份状态，切换皮肤即整棵子树换肤
+   ============================================================================= */
+(function () {
+  'use strict';
+
+  /* ---------- 图标：Lucide 风格 24×24 / stroke 2 / round ---------- */
+  var P = {
+    minus: '<path d="M5 12h14"/>',
+    square: '<rect x="5" y="5" width="14" height="14" rx="1"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    chev: '<path d="m6 9 6 6 6-6"/>',
+    upload: '<path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M4 15l1.4-3.1A6 6 0 0 1 16.6 9.4 3.75 3.75 0 0 1 18.2 16.5H17"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    play: '<path d="m6 3.5 14 8.5-14 8.5z"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+    layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+    sliders: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+    gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+    hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+    wave: '<path d="M2 12h2.5l2-6 3 13 3-15 2.5 12 2-4H22"/>',
+    mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
+    music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    cpu: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>',
+    headphones: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 15a2 2 0 0 1 2-2h1v6H6a2 2 0 0 1-2-2z"/><path d="M20 15a2 2 0 0 0-2-2h-1v6h1a2 2 0 0 0 2-2z"/>'
+  };
+  function svg(n) {
+    return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[n] || P.sliders) + '</svg>';
+  }
+  function paintIcons(root) {
+    (root || document).querySelectorAll('[data-ic]').forEach(function (el) {
+      if (!el.firstElementChild) el.innerHTML = svg(el.getAttribute('data-ic'));
+    });
+  }
+
+  /* ---------- 降低动态偏好 ---------- */
+  var RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- 模式定义（页面 1 歌曲扒谱） ---------- */
+  var MODES = [
+    {
+      id: 'auto', name: '全自动扒谱', desc: '人声 + 伴奏双轨', ic: 'layers', tag: 'AUTO',
+      note: '双轨输出：人声主旋律轨 + 伴奏和弦轨。',
+      suffix: '双轨', tracks: 2, notes: 1248,
+      main: [
+        { k: 'bpm', label: 'BPM', hint: '未检测到节拍时按此值量化', type: 'num', min: 40, max: 220, step: 1, val: 96, dec: 0 },
+        { k: 'sepq', label: '分离模型精度', hint: '越高越慢，伴奏残留越少', type: 'range', min: 1, max: 5, step: 1, val: 3, dec: 0, suffix: ' 档' },
+        { k: 'slim', label: '精简强度', hint: '合并短音、剔除无效音', type: 'range', min: 0, max: 100, step: 1, val: 42, dec: 0, suffix: '%' }
+      ],
+      adv: [
+        { k: 'n_peaks', label: 'n_peaks', hint: '每帧候选峰值数', type: 'range', min: 1, max: 16, step: 1, val: 6, dec: 0 },
+        { k: 'onset', label: 'onset 灵敏度', hint: '越低越容易切分出音头', type: 'range', min: 0.05, max: 0.95, step: 0.01, val: 0.42, dec: 2 },
+        { k: 'mindur', label: '最小音符时长', hint: '短于此长度的音将被丢弃', type: 'range', min: 30, max: 400, step: 5, val: 90, dec: 0, suffix: ' ms' }
+      ]
+    },
+    {
+      id: 'accomp', name: '只扒伴奏', desc: '单轨和弦谱', ic: 'music', tag: 'ACCOMP',
+      note: '仅输出伴奏轨，人声区域自动跳过。',
+      suffix: '伴奏', tracks: 1, notes: 986,
+      main: [
+        { k: 'chord', label: '和弦识别灵敏度', hint: '决定复音数量的容忍度', type: 'range', min: 0, max: 100, step: 1, val: 64, dec: 0, suffix: '%' },
+        { k: 'bass', label: '保留贝斯轨', hint: '低于 120Hz 的低频单独成轨', type: 'toggle', val: true },
+        { k: 'slim', label: '精简强度', hint: '合并短音、剔除无效音', type: 'range', min: 0, max: 100, step: 1, val: 58, dec: 0, suffix: '%' }
+      ],
+      adv: [
+        { k: 'n_peaks', label: 'n_peaks', hint: '每帧候选峰值数', type: 'range', min: 1, max: 16, step: 1, val: 8, dec: 0 },
+        { k: 'onset', label: 'onset 灵敏度', hint: '越低越容易切分出音头', type: 'range', min: 0.05, max: 0.95, step: 0.01, val: 0.34, dec: 2 },
+        { k: 'mindur', label: '最小音符时长', hint: '短于此长度的音将被丢弃', type: 'range', min: 30, max: 400, step: 5, val: 120, dec: 0, suffix: ' ms' }
+      ]
+    },
+    {
+      id: 'melody', name: '只扒人声旋律', desc: '单轨主旋律', ic: 'mic', tag: 'MELODY',
+      note: '输出人声主旋律单轨，适合旋律谱。',
+      suffix: '旋律', tracks: 1, notes: 312,
+      main: [
+        { k: 'lo', label: '音域下限', hint: '低于此 MIDI 音高的部分忽略', type: 'range', min: 36, max: 72, step: 1, val: 55, dec: 0 },
+        { k: 'oct', label: '八度容差', hint: '抑制跨八度的误判跳音', type: 'range', min: 0, max: 12, step: 1, val: 3, dec: 0, suffix: ' 半音' },
+        { k: 'breath', label: '呼吸抑制', hint: '过滤换气与气声噪声', type: 'toggle', val: true }
+      ],
+      adv: [
+        { k: 'n_peaks', label: 'n_peaks', hint: '每帧候选峰值数', type: 'range', min: 1, max: 16, step: 1, val: 3, dec: 0 },
+        { k: 'onset', label: 'onset 灵敏度', hint: '越低越容易切分出音头', type: 'range', min: 0.05, max: 0.95, step: 0.01, val: 0.51, dec: 2 },
+        { k: 'mindur', label: '最小音符时长', hint: '短于此长度的音将被丢弃', type: 'range', min: 30, max: 400, step: 5, val: 70, dec: 0, suffix: ' ms' }
+      ]
+    },
+    {
+      id: 'basic', name: '基本扒谱', desc: '乐器 · 单音轨', ic: 'cpu', tag: 'BASIC',
+      note: '通用单轨模式，适合乐器与练习素材。',
+      suffix: '单轨', tracks: 1, notes: 428,
+      main: [
+        { k: 'bpm', label: 'BPM', hint: '未检测到节拍时按此值量化', type: 'num', min: 40, max: 220, step: 1, val: 120, dec: 0 },
+        { k: 'grid', label: '量化网格', hint: '0 为不量化，越大越贴格', type: 'range', min: 0, max: 100, step: 1, val: 75, dec: 0, suffix: '%' },
+        { k: 'poly', label: '复音上限', hint: '单音轨允许同时发声的音数', type: 'range', min: 1, max: 8, step: 1, val: 1, dec: 0, suffix: ' 声部' }
+      ],
+      adv: [
+        { k: 'n_peaks', label: 'n_peaks', hint: '每帧候选峰值数', type: 'range', min: 1, max: 16, step: 1, val: 4, dec: 0 },
+        { k: 'onset', label: 'onset 灵敏度', hint: '越低越容易切分出音头', type: 'range', min: 0.05, max: 0.95, step: 0.01, val: 0.48, dec: 2 },
+        { k: 'mindur', label: '最小音符时长', hint: '短于此长度的音将被丢弃', type: 'range', min: 30, max: 400, step: 5, val: 100, dec: 0, suffix: ' ms' }
+      ]
+    }
+  ];
+
+  /* ---------- 阶段 ---------- */
+  var STAGES = [
+    { t: '分离人声', d: '载入音频 · 44.1kHz 重采样' },
+    { t: '分析频谱', d: 'STFT 2048 · 跳帧 512' },
+    { t: '追踪音符', d: '峰值拾取 → 音高轨迹连接' },
+    { t: '生成 MIDI', d: '量化 · 分轨 · 写入文件' }
+  ];
+
+  /* ---------- 状态 ---------- */
+  var state = {
+    skin: 'frost',
+    mode: 'auto',
+    file: null,
+    running: false,
+    done: false,
+    stage: -1,
+    pct: 0
+  };
+  var values = {};                                  // 参数值（跨皮肤共享）
+  MODES.forEach(function (m) {
+    m.main.concat(m.adv).forEach(function (p) { values[p.k] = p.val; });
+  });
+
+  function mode() { return MODES.filter(function (m) { return m.id === state.mode; })[0]; }
+  function fmt(p) {
+    var v = values[p.k];
+    if (p.type === 'toggle') return v ? '开' : '关';
+    return (p.dec ? Number(v).toFixed(p.dec) : String(v)) + (p.suffix || '');
+  }
+
+  /* ---------- 查询各皮肤内的元素 ---------- */
+  function each(fn) {
+    document.querySelectorAll('.skin').forEach(function (sk) { fn(sk, sk.getAttribute('data-skin')); });
+  }
+  function $(sk, sel) { return sk.querySelector(sel); }
+
+  /* =========================== 参数渲染（四套排版） =========================== */
+  function rng(p) {
+    return '<input class="rng" type="range" data-p="' + p.k + '" min="' + p.min + '" max="' + p.max +
+      '" step="' + p.step + '" value="' + values[p.k] + '" aria-label="' + p.label + '">';
+  }
+  function numIn(p) {
+    return '<input class="num num--web" type="number" data-p="' + p.k + '" min="' + p.min + '" max="' + p.max +
+      '" step="' + p.step + '" value="' + values[p.k] + '" aria-label="' + p.label + '">';
+  }
+  function tog(p) {
+    return '<div class="togrow"><button class="tog" type="button" role="switch" data-p="' + p.k +
+      '" aria-checked="' + (values[p.k] ? 'true' : 'false') + '" aria-label="' + p.label + '"></button>' +
+      '<span data-tog-t="' + p.k + '">' + fmt(p) + '</span></div>';
+  }
+  function ctl(p) { return p.type === 'toggle' ? tog(p) : (p.type === 'num' ? numIn(p) : rng(p)); }
+
+  function rowFrost(p) {
+    return '<div class="fr-p"><div class="fr-p__top"><span class="fr-p__l">' + p.label + '</span>' +
+      '<span class="fr-p__v" data-val="' + p.k + '">' + fmt(p) + '</span></div>' + ctl(p) +
+      '<p class="fr-p__hint">' + p.hint + '</p></div>';
+  }
+  function rowCellar(p) {
+    var r = (values[p.k] - p.min) / (p.max - p.min) * 100;
+    return '<div class="ck-p"><div class="ck-p__top"><span class="ck-p__l">' + p.label + '</span>' +
+      '<span class="ck-p__v" data-val="' + p.k + '">' + fmt(p) + '</span></div>' + ctl(p) +
+      '<div class="ck-p__scale"><i data-tick="' + p.k + '" style="left:' + r + '%"></i></div></div>';
+  }
+  function rowAbyss(p) {
+    return '<div class="ab-p"><div class="ab-p__top"><span class="ab-p__l">' + p.label + '</span>' +
+      '<span class="ab-p__v" data-val="' + p.k + '">' + fmt(p) + '</span></div>' + ctl(p) + '</div>';
+  }
+  function rowPaper(p) {
+    return '<div class="pp-trow"><div class="pp-tl"><b>' + p.label + '</b><span>' + p.hint + '</span></div>' +
+      '<div>' + ctl(p) + '</div><div class="pp-tv" data-val="' + p.k + '">' + fmt(p) + '</div></div>';
+  }
+  var RENDER = { frost: rowFrost, cellar: rowCellar, abyss: rowAbyss, paper: rowPaper };
+
+  function renderParams() {
+    var m = mode();
+    each(function (sk, id) {
+      var f = RENDER[id];
+      var main = $(sk, '[data-params]'), adv = $(sk, '[data-adv-panel]');
+      if (!main) return;
+      main.innerHTML = m.main.map(f).join('');
+      if (adv) {
+        adv.innerHTML = (id === 'paper'
+          ? '<div class="pp-thead" style="border-bottom-color:var(--line-2)"><span>高级参数</span><span>调整</span><span>数值</span></div>'
+          : '') + m.adv.map(f).join('');
+      }
+      var lb = $(sk, '[data-ck-params-label]');
+      if (lb) lb.textContent = m.main.length + ' / ' + (m.main.length + m.adv.length);
+      paintIcons(sk);
+    });
+  }
+
+  /* =========================== 模式下拉 + 联动 =========================== */
+  function renderSel() {
+    each(function (sk, id) {
+      var list = $(sk, '[data-sel-list]');
+      if (!list) return;
+      list.innerHTML = MODES.map(function (m, i) {
+        return '<button class="sel__opt" type="button" role="option" data-mode="' + m.id + '" aria-selected="' +
+          (m.id === state.mode) + '" style="animation-delay:' + (i * 40) + 'ms">' +
+          '<i>' + svg(m.ic) + '</i><span style="min-width:0"><b>' + m.name + '</b><s>' + m.desc + '</s></span>' +
+          '<u>' + svg('check') + '</u></button>';
+      }).join('');
+    });
+  }
+  function syncSel() {
+    var m = mode();
+    each(function (sk) {
+      var l = $(sk, '[data-sel-label]'), d = $(sk, '[data-sel-desc]');
+      if (l) l.textContent = m.name;
+      if (d) d.textContent = m.desc;
+      sk.querySelectorAll('[data-mode]').forEach(function (b) {
+        b.setAttribute('aria-selected', b.getAttribute('data-mode') === m.id ? 'true' : 'false');
+      });
+      var note = $(sk, '[data-sel-note]'); if (note) note.textContent = m.note;
+      var pm = $(sk, '[data-pp-mode]'); if (pm) pm.textContent = m.tag;
+      var det = $(sk, '[data-detent]');
+      if (det && !det.childElementCount) {
+        det.innerHTML = MODES.map(function (x, i) {
+          return '<div class="ck-mode" aria-selected="' + (x.id === m.id) + '"><span class="ck-mode__n">0' + (i + 1) +
+            '</span><span class="ck-mode__knob"></span><span class="ck-mode__t">' + x.tag + '</span></div>';
+        }).join('');
+      }
+      if (det) det.querySelectorAll('.ck-mode').forEach(function (n, i) {
+        n.setAttribute('aria-selected', MODES[i].id === m.id ? 'true' : 'false');
+      });
+      var tabs = $(sk, '[data-pp-modes]');
+      if (tabs) {
+        tabs.innerHTML = MODES.map(function (x) {
+          return '<button class="pp-mode" type="button" role="tab" data-mode="' + x.id + '" aria-selected="' +
+            (x.id === m.id) + '">' + x.name + '</button>';
+        }).join('') + '<span class="pp-modes__sp"></span>';
+      }
+    });
+  }
+  function setMode(id) {
+    if (state.mode === id) return;
+    state.mode = id;
+    if (state.running) stop();
+    state.done = false;
+    syncSel(); renderParams(); paintStage('idle'); paintResult();
+  }
+
+  /* =========================== 皮肤切换 =========================== */
+  var SKINS = ['frost', 'cellar', 'abyss', 'paper'];
+  function setSkin(id) {
+    if (state.skin === id) return;
+    state.skin = id;
+    document.documentElement.setAttribute('data-skin', id);
+    document.body.classList.add('skinning');
+    SKINS.forEach(function (k) {
+      var el = document.querySelector('.skin[data-skin="' + k + '"]');
+      if (el) el.hidden = (k !== id);
+    });
+    document.querySelectorAll('[data-skin-btn]').forEach(function (b) {
+      b.setAttribute('aria-selected', b.getAttribute('data-skin-btn') === id ? 'true' : 'false');
+    });
+    moveInd();
+    setTimeout(function () { document.body.classList.remove('skinning'); }, 300);
+    requestAnimationFrame(function () { sizeCanvases(); });
+  }
+  function moveInd() {
+    var act = document.querySelector('[data-skin-btn][aria-selected="true"]');
+    var ind = document.getElementById('segInd');
+    if (act && ind) { ind.style.width = act.offsetWidth + 'px'; ind.style.transform = 'translateX(' + (act.offsetLeft - 3) + 'px)'; }
+  }
+
+  /* =========================== 文件 / 拖放 =========================== */
+  var DEMO = { name: '示例音频 · 茉莉花.wav', size: 41.3, dur: '03:42', rate: '44.1 kHz / 24 bit' };
+  function setFile(f) {
+    state.file = f;
+    each(function (sk) {
+      var bar = $(sk, '[data-filebar]'), emp = $(sk, '.drop__empty');
+      if (bar) { bar.style.display = f ? 'flex' : 'none'; }
+      if (emp) { emp.style.display = f ? 'none' : 'block'; }
+      var n = $(sk, '[data-file-name]'), m = $(sk, '[data-file-meta]');
+      if (n) n.textContent = f ? f.name : '—';
+      if (m) m.textContent = f ? (f.size + ' MB · ' + f.rate + ' · ' + f.dur) : '—';
+      var st = $(sk, '[data-start]');
+      if (st) st.disabled = !f;
+    });
+    if (f && !state.done) paintStage('idle');
+    paintRes();
+  }
+  function fileFromReal(file) {
+    var mb = (file.size / 1048576).toFixed(1);
+    setFile({ name: file.name, size: mb, rate: '未知采样率', dur: '—' });
+  }
+  function fmtDur(s) { return s; }
+
+  /* =========================== 状态文案 / 进度 =========================== */
+  function paintStage(phase) {
+    each(function (sk) {
+      var now = $(sk, '[data-now]'), pc = $(sk, '[data-pc]'), bar = $(sk, '[data-bar]'), stg = $(sk, '[data-stages]');
+      var isCellar = sk.getAttribute('data-skin') === 'cellar';
+      if (stg && !stg.childElementCount) {
+        stg.innerHTML = STAGES.map(function (s) {
+          return '<div class="stg__i"><i class="stg__d"></i><span class="stg__t">' + s.t + '</span></div>';
+        }).join('');
+      }
+      if (now) {
+        if (phase === 'run') now.textContent = (isCellar ? '' : '') + STAGES[state.stage].t + ' · ' + STAGES[state.stage].d;
+        else if (phase === 'done') now.textContent = isCellar ? 'COMPLETE · MIDI 已写入' : '完成 · MIDI 已生成，可在下方打开目录';
+        else now.textContent = state.file ? (isCellar ? 'READY · 按 RUN 开始扒谱' : '已就绪 · 点击「开始扒谱」') : '等待音频文件';
+      }
+      if (pc) pc.innerHTML = phase === 'idle' ? '' : (state.pct + '<small>%</small>');
+      if (bar) bar.style.width = (phase === 'idle' ? 0 : state.pct) + '%';
+      if (stg) stg.querySelectorAll('.stg__i').forEach(function (n, i) {
+        n.classList.toggle('is-now', phase !== 'idle' && i === state.stage);
+        n.classList.toggle('is-done', phase !== 'idle' && i < state.stage);
+      });
+      var tag = $(sk, '[data-tag]'), tt = $(sk, '[data-tag-t]');
+      if (tag) {
+        tag.classList.toggle('is-live', phase === 'run');
+        tag.classList.toggle('is-done', phase === 'done');
+        if (tt) tt.textContent = phase === 'run' ? 'RUNNING · ' + STAGES[state.stage].t : (phase === 'done' ? 'DONE · 已导出' : '待机 IDLE');
+      }
+      if (isCellar) paintVU(phase);
+      var navs = sk.querySelectorAll('[data-nav]');
+      if (navs.length) {
+        navs.forEach(function (n, i) {
+          var reached = phase === 'done' ? true : (phase === 'run' ? i <= 1 : i === 0);
+          var nowStep = phase === 'run' ? i === 1 : (phase === 'done' ? i === 2 : i === 0);
+          n.classList.toggle('is-done', reached && !nowStep);
+          n.classList.toggle('is-now', nowStep);
+        });
+      }
+    });
+  }
+  function paintResult() {
+    var m = mode();
+    each(function (sk) {
+      var r = $(sk, '[data-res]');
+      if (!r) return;
+      var on = state.done;
+      r.classList.toggle('is-on', on);
+      if (!on) return;
+      var base = (state.file ? state.file.name : 'output').replace(/\.[^.]+$/, '');
+      $(sk, '[data-res-name]').textContent = base + '_' + m.suffix + '.mid';
+      $(sk, '[data-res-notes]').textContent = m.notes.toLocaleString('en-US');
+      $(sk, '[data-res-tracks]').textContent = m.tracks;
+      $(sk, '[data-res-dur]').textContent = state.file ? state.file.dur : '—';
+    });
+  }
+  var paintRes = paintResult;
+
+  /* =========================== 运行流程 =========================== */
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function stop() { clearTimers(); state.running = false; }
+
+  function run() {
+    if (!state.file || state.running) return;
+    clearTimers();
+    state.running = true; state.done = false; state.stage = 0; state.pct = 0;
+    paintResult();
+    var step = RM ? 260 : 900;
+    STAGES.forEach(function (s, i) {
+      var from = Math.round(i * 100 / STAGES.length);
+      var to = Math.round((i + 1) * 100 / STAGES.length);
+      timers.push(setTimeout(function () { state.stage = i; state.pct = from; paintStage('run'); }, i * step));
+      var seg = RM ? 3 : 9;
+      for (var j = 1; j <= seg; j++) {
+        (function (i, j, from, to) {
+          timers.push(setTimeout(function () {
+            state.pct = Math.round(from + (to - from) * (j / seg));
+            var bar = document.querySelector('.skin[data-skin="' + state.skin + '"] [data-bar]');
+            var pc = document.querySelector('.skin[data-skin="' + state.skin + '"] [data-pc]');
+            if (bar) bar.style.width = state.pct + '%';
+            if (pc) pc.innerHTML = state.pct + '<small>%</small>';
+            if (state.skin === 'cellar') paintVU('run');
+          }, i * step + j * (step / seg)));
+        })(i, j, from, to);
+      }
+    });
+    timers.push(setTimeout(function () {
+      state.running = false; state.done = true; state.stage = STAGES.length - 1; state.pct = 100;
+      paintStage('done'); paintResult();
+    }, STAGES.length * step + 120));
+  }
+
+  function reset() {
+    clearTimers();
+    state.running = false; state.done = false; state.stage = -1; state.pct = 0;
+    setFile(null); paintStage('idle'); paintResult();
+  }
+
+  /* =========================== 画布：Cellar 示波器 + VU =========================== */
+  var vuPhase = 0;
+  function paintVU(phase) {
+    vuPhase += 0.06;
+    var live = phase === 'run' ? 1 : (phase === 'done' ? 0.34 : 0.12);
+    document.querySelectorAll('[data-vu]').forEach(function (b, i) {
+      var f = b.querySelector('.ck-vu__fill');
+      if (!f) return;
+      var wob = Math.sin(vuPhase * (1.6 + i * 0.7)) * 0.5 + 0.5;
+      var h = live * (i === 2 ? 62 : 74) * (0.42 + wob * 0.58);
+      f.style.height = h.toFixed(1) + '%';
+    });
+    var cv = document.querySelector('.skin[data-skin="cellar"] [data-scope]');
+    if (!cv || !cv.offsetParent) return;
+    var ctx = cv.getContext('2d');
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    var amp = phase === 'run' ? h * 0.36 : phase === 'done' ? h * 0.16 : h * 0.05;
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = phase === 'run' ? '#F0C070' : '#9C8F79';
+    ctx.shadowColor = 'rgba(224,163,60,.55)';
+    ctx.shadowBlur = phase === 'run' ? 7 : 0;
+    ctx.beginPath();
+    for (var x = 0; x <= w; x += 2) {
+      var p = x / w;
+      var y = h / 2 +
+        Math.sin(p * 22 + vuPhase * 3) * amp * 0.6 +
+        Math.sin(p * 57 - vuPhase * 2.1) * amp * 0.28 +
+        Math.sin(p * 7.3 + vuPhase) * amp * 0.22;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  /* =========================== 画布：Abyss 频谱 =========================== */
+  var spec = { bars: [], phase: 0 };
+  function buildSpec(n) {
+    spec.bars = [];
+    for (var i = 0; i < n; i++) {
+      spec.bars.push({ seed: Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1, y: 0, t: 0 });
+    }
+  }
+  function drawSpectrum() {
+    var cv = document.querySelector('.skin[data-skin="abyss"] [data-spectrum]');
+    if (!cv || !cv.offsetParent) return;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    spec.phase += RM ? 0 : 0.016;
+    ctx.clearRect(0, 0, w, h);
+
+    var n = Math.max(28, Math.floor(w / 13));
+    if (spec.bars.length !== n) buildSpec(n);
+    var live = state.running ? 1 : (state.done ? 0.62 : 0.3);
+    var hasFile = !!state.file;
+    var baseY = h * 0.60, span = h * 0.40;
+
+    // 背景：横向深度层
+    var g = ctx.createLinearGradient(0, baseY - span, 0, baseY + span * 0.5);
+    g.addColorStop(0, 'rgba(30,127,168,.16)');
+    g.addColorStop(0.55, 'rgba(43,217,196,.07)');
+    g.addColorStop(1, 'rgba(59,130,246,.02)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // 网格刻度
+    ctx.strokeStyle = 'rgba(126,147,174,.10)';
+    ctx.lineWidth = 1;
+    for (var gy = 0; gy < 5; gy++) {
+      var yy = Math.round(baseY - span * (gy / 4)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(w, yy); ctx.stroke();
+    }
+
+    // 频谱柱
+    var bw = w / n;
+    for (var i = 0; i < n; i++) {
+      var b = spec.bars[i];
+      var env = Math.pow(1 - i / n, 1.7);
+      var t = spec.phase * (1.2 + b.seed * 1.6) + b.seed * 40;
+      var target = live * (0.30 + 0.70 * Math.abs(Math.sin(t))) * env * (hasFile ? 1 : 0.42);
+      b.t += (target - b.t) * (RM ? 1 : 0.16);
+      var bh = Math.max(1.5, b.t * span * 1.5);
+      var x = i * bw;
+      var near = state.running ? Math.abs(i / n - (spec.phase * 0.12) % 1) < 0.05 : false;
+      var gr = ctx.createLinearGradient(0, baseY - bh, 0, baseY);
+      if (near) { gr.addColorStop(0, 'rgba(147,240,225,.95)'); gr.addColorStop(1, 'rgba(59,130,246,.28)'); }
+      else { gr.addColorStop(0, 'rgba(43,217,196,' + (0.30 + b.t * 0.5).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(30,127,168,.06)'); }
+      ctx.fillStyle = gr;
+      ctx.fillRect(x + 1, baseY - bh, Math.max(1, bw - 2.4), bh);
+    }
+
+    // 音高轨迹曲线（已识别音符的连线感）
+    ctx.beginPath();
+    for (var x2 = 0; x2 <= w; x2 += 3) {
+      var p2 = x2 / w;
+      var amp2 = (hasFile ? 1 : 0.34) * live;
+      var y2 = baseY - span * (0.30 + 0.52 * Math.abs(Math.sin(p2 * 17 + spec.phase * 2.4)) * (0.5 + 0.5 * Math.sin(p2 * 5.1)));
+      y2 -= amp2 * 6;
+      if (x2 === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+    }
+    ctx.strokeStyle = state.done ? 'rgba(70,194,160,.55)' : 'rgba(43,217,196,.38)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // 基线
+    ctx.strokeStyle = 'rgba(126,147,174,.30)';
+    ctx.beginPath(); ctx.moveTo(0, baseY + 0.5); ctx.lineTo(w, baseY + 0.5); ctx.stroke();
+  }
+
+  /* =========================== 尺寸 =========================== */
+  function sizeCanvases() {
+    document.querySelectorAll('.skin canvas').forEach(function (c) {
+      if (!c.offsetParent) return;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var w = c.clientWidth, h = c.clientHeight;
+      if (w && h) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    });
+  }
+
+  /* =========================== 渲染循环 =========================== */
+  function loop() {
+    if (state.skin === 'abyss') drawSpectrum();
+    requestAnimationFrame(loop);
+  }
+
+  /* =========================== 事件绑定 =========================== */
+  function bind() {
+    // 皮肤切换
+    document.querySelectorAll('[data-skin-btn]').forEach(function (b) {
+      b.addEventListener('click', function () { setSkin(b.getAttribute('data-skin-btn')); });
+    });
+
+    each(function (sk) {
+      // 下拉
+      var sel = $(sk, '[data-sel]');
+      if (sel) {
+        var trg = sel.querySelector('.sel__trg');
+        trg.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var open = sel.classList.contains('is-open');
+          document.querySelectorAll('.sel.is-open').forEach(function (o) {
+            o.classList.remove('is-open');
+            o.querySelector('.sel__trg').setAttribute('aria-expanded', 'false');
+          });
+          sel.classList.toggle('is-open', !open);
+          trg.setAttribute('aria-expanded', String(!open));
+        });
+        sel.querySelector('[data-sel-list]').addEventListener('click', function (e) {
+          var b = e.target.closest('[data-mode]');
+          if (!b) return;
+          setMode(b.getAttribute('data-mode'));
+          sel.classList.remove('is-open');
+          trg.setAttribute('aria-expanded', 'false');
+        });
+      }
+      // 标签页 / 模式任意入口
+      sk.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-mode]');
+        if (b && !b.closest('[data-sel-list]')) setMode(b.getAttribute('data-mode'));
+      });
+
+      // 高级参数折叠
+      var adv = $(sk, '[data-adv]');
+      if (adv) {
+        var at = adv.querySelector('[data-adv-toggle]');
+        at.addEventListener('click', function () {
+          var open = adv.classList.toggle('is-open');
+          at.setAttribute('aria-expanded', String(open));
+        });
+      }
+
+      // 拖放区：点击载入 + 真实拖拽
+      var drop = $(sk, '[data-drop]');
+      if (drop) {
+        drop.addEventListener('click', function () { if (!state.file) setFile(DEMO); });
+        drop.addEventListener('keydown', function (e) {
+          if ((e.key === 'Enter' || e.key === ' ') && !state.file) { e.preventDefault(); setFile(DEMO); }
+        });
+        ['dragenter', 'dragover'].forEach(function (t) {
+          drop.addEventListener(t, function (e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; drop.classList.add('is-over'); });
+        });
+        ['dragleave', 'dragend'].forEach(function (t) {
+          drop.addEventListener(t, function () { drop.classList.remove('is-over'); });
+        });
+        drop.addEventListener('drop', function (e) {
+          e.preventDefault(); drop.classList.remove('is-over');
+          var f = e.dataTransfer.files && e.dataTransfer.files[0];
+          if (f) fileFromReal(f); else setFile(DEMO);
+        });
+      }
+      var clr = $(sk, '[data-clear]');
+      if (clr) clr.addEventListener('click', function (e) { e.stopPropagation(); reset(); });
+
+      // 主流程
+      var st = $(sk, '[data-start]'); if (st) st.addEventListener('click', function () { run(); });
+      var rs = $(sk, '[data-reset]'); if (rs) rs.addEventListener('click', function () { reset(); });
+      var op = $(sk, '[data-open]');
+      if (op) op.addEventListener('click', function () {
+        op.textContent = '已定位到导出目录';
+        setTimeout(function () { op.innerHTML = svg('folder') + '打开目录'; }, 1500);
+      });
+
+      // 参数双向绑定
+      sk.addEventListener('input', onParam);
+      sk.addEventListener('change', onParam);
+      sk.addEventListener('click', function (e) {
+        var t = e.target.closest('.tog');
+        if (!t) return;
+        var k = t.getAttribute('data-p');
+        values[k] = !values[k];
+        t.setAttribute('aria-checked', values[k] ? 'true' : 'false');
+        syncVal(k);
+      });
+    });
+
+    // 全局：点击空白关闭下拉 / Esc
+    document.addEventListener('click', function () {
+      document.querySelectorAll('.sel.is-open').forEach(function (o) {
+        o.classList.remove('is-open');
+        o.querySelector('.sel__trg').setAttribute('aria-expanded', 'false');
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.sel.is-open').forEach(function (o) {
+          o.classList.remove('is-open');
+          o.querySelector('.sel__trg').setAttribute('aria-expanded', 'false');
+        });
+      }
+    });
+  }
+
+  function onParam(e) {
+    var el = e.target;
+    var k = el.getAttribute && el.getAttribute('data-p');
+    if (!k) return;
+    if (el.type === 'range') values[k] = parseFloat(el.value);
+    else if (el.type === 'number') { values[k] = parseFloat(el.value); if (isNaN(values[k])) return; }
+    syncVal(k);
+  }
+  function syncVal(k) {
+    var p = null;
+    MODES.forEach(function (m) {
+      m.main.concat(m.adv).forEach(function (x) { if (x.k === k) p = x; });
+    });
+    if (!p) return;
+    each(function (sk) {
+      sk.querySelectorAll('[data-val="' + k + '"]').forEach(function (n) { n.textContent = fmt(p); });
+      sk.querySelectorAll('[data-tog-t="' + k + '"]').forEach(function (n) { n.textContent = fmt(p); });
+      sk.querySelectorAll('[data-p="' + k + '"]').forEach(function (n) {
+        if (n.type === 'range' || n.type === 'number') n.value = values[k];
+        if (n.classList.contains('tog')) n.setAttribute('aria-checked', values[k] ? 'true' : 'false');
+      });
+      var tick = sk.querySelector('[data-tick="' + k + '"]');
+      if (tick) tick.style.left = ((values[k] - p.min) / (p.max - p.min) * 100) + '%';
+    });
+  }
+
+  /* =========================== 启动 =========================== */
+  function init() {
+    paintIcons(document);
+    // 窗口按钮图标
+    document.querySelectorAll('.win__btn[data-icon]').forEach(function (b) { b.innerHTML = svg(b.getAttribute('data-icon')); });
+    renderSel();
+    syncSel();
+    renderParams();
+    bind();
+    setFile(null);
+    paintStage('idle');
+    paintVU('idle');
+    sizeCanvases();
+    moveInd();
+    loop();
+    // 首次进入：示意一次完整流转（降低动态偏好下也保证状态可读）
+    setTimeout(function () { setFile(DEMO); }, RM ? 120 : 520);
+    setTimeout(function () { run(); }, RM ? 420 : 1500);
+    window.addEventListener('resize', function () { sizeCanvases(); moveInd(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();</script>
 </body>
 </html>

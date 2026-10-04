@@ -109,3 +109,53 @@ soundfile（libsndfile），**不经过 ffmpeg，也不经过 audioread 的 ffmp
   不可绕过，属主上侧限制，非缺陷。
 - **视频文件**（mp4/mkv 容器）：`.mp4` 在白名单内但仅取其音轨；若容器无音轨
   则转码失败并提示。
+
+## 6. 附带发现：pretty_midi API 变体（本机实测）
+
+本机 `pretty_midi 0.2.11.post0` 的 `PrettyMIDI` 对象**没有** `get_duration()` /
+`get_tempo()` / `end_time`，实际可用的是：
+
+| 惯用写法 | 本机实际可用 |
+|---|---|
+| `m.get_duration()` | `m.get_end_time()` |
+| `m.get_tempo()` | `m.estimate_tempo()` / `m.get_tempo_changes()` |
+
+**影响**：写验证脚本 / 读回 MIDI 时勿凭记忆用 API。已在 `engine/` 的验证工具中
+按本机 API 编写。若日后换环境出现同名方法缺失，属版本差异非代码缺陷。
+
+## 7. 内核能力实测（端到端跑通上游）
+
+命令：
+```
+engine/.venv/Scripts/python.exe third_party/AutoTranscriber/main.py \
+  -i third_party/AutoTranscriber/test_audio/chord_progression.wav \
+  -o .tmp/probe_out.mid --n_peaks 4
+```
+输出：`检测到 9 个节奏起始点` → `✅ MIDI 已保存 (9 个音符)`
+
+读回验证（pretty_midi）：
+```
+tempo 70.8  end_time 2.67
+track0 name='' program=0 notes=9
+   pitch=64 (+4st) start=0.00 end=0.79 vel=38
+   pitch=67 (+7st) start=0.00 end=0.79 vel=31
+   pitch=60 ( 0st) start=0.00 end=0.81 vel=42
+   pitch=67 (+7st) start=0.90 end=1.70 vel=24
+   pitch=55 (-5st) start=0.84 end=1.72 vel=47
+```
+
+**结论**：扒谱内核在 RTX 3080 环境下可用，音符的 pitch/start/end/velocity 均正常，
+和弦音（E4/G4/C4 同时起）被正确识别为多音高。
+
+### 上游缺陷 #3（已确认，需适配层补）
+`third_party/AutoTranscriber/AutoTranscriber/midi_writer.py` 全文**无任何
+`name=` 赋值**（`:13` `pretty_midi.Instrument(program=program)`、
+`:330` 同）。故产出 MIDI 的**轨名恒为空字符串 `''`**，实测确认。
+
+**影响**：MuseScore 打开时两轨都显示为默认轨名，主上无法分辨哪轨是人声、
+哪轨是伴奏——直接损害需求 G6「MuseScore 可用，轨名正确」。
+
+**我方解法（不改上游）**：适配层用 pretty_midi 读回上游产出，按轨道顺序
+重新赋名（人声轨 → `人声 Voice`、伴奏轨 → `伴奏 Accompaniment`）与 program
+（人声 → 52 Choir Aahs / 53 Voice Oohs，伴奏 → 0 Piano）后重写。
+详见 `engine/` 的轨道命名映射表。
