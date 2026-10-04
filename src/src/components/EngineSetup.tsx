@@ -151,14 +151,24 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
    * 之前 TIER_FULL 漏装 demucs 却仍宣称支持分离，正是因为描述与实现
    * 分处两地、无人对账。
    */
-  const tiers = status?.tiers ?? []
+  // 逐字段兜底：后端版本不匹配时（如旧 bootstrap.py 没有 can 字段），
+  // 少了防御就会在渲染期抛 TypeError → React 卸载整棵树 → 黑屏。
+  const tiers = (status?.tiers ?? []).map((t) => ({
+    ...t,
+    label: t.label ?? t.id,
+    desc: t.desc ?? '',
+    can: t.can ?? [],
+    cannot: t.cannot ?? [],
+  }))
   const mirrors = status?.mirrors ?? []
 
   /** 已装但缺能力时，给出「加装」提示而非让用户整个重装 */
   const needsUpgrade = (status?.missing?.length ?? 0) > 0
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    // bg-bg 必不可少：窗口设了 transparent:true，没有背景色就是一片纯黑。
+    // 主上实测踩过：「点了加装直接变黑」。
+    <div className="flex h-screen flex-col overflow-hidden bg-bg text-[var(--text)]">
       {/* 窗口 chrome（与主界面一致，无可见交界线） */}
       <header
         data-tauri-drag-region
@@ -277,7 +287,7 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                             告诉他**选完能干什么**才是可决策的信息。
                             「不能做」必须显式列出，否则用户装完才发现缺功能。 */}
                         <span className="mt-2 flex flex-col gap-1">
-                          {t.can.map((c) => (
+                          {(t.can ?? []).map((c) => (
                             <span
                               key={c}
                               className="flex items-start gap-1.5 text-[11.5px] leading-snug text-[var(--text-dim)]"
@@ -290,7 +300,7 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                               {c}
                             </span>
                           ))}
-                          {t.cannot.map((c) => (
+                          {(t.cannot ?? []).map((c) => (
                             <span
                               key={c}
                               className="flex items-start gap-1.5 text-[11.5px] leading-snug text-[var(--text-faint)]"

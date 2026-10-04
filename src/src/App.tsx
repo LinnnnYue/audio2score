@@ -81,6 +81,29 @@ export default function App() {
    * 引擎未就绪 → 走首启安装向导；装完 onReady 切回主界面。
    * engineReady 为 null 表示还在探测中，此时不渲染任何分支，避免闪烁。
    */
+  /* chrome 空白处可拖动窗口；交互元素上不触发 */
+  const startDrag = useCallback((e: React.MouseEvent) => {
+    const t = e.target as HTMLElement
+    if (t.closest('button, a, input, select, textarea, [role="button"], [data-no-drag]')) return
+    if (!inTauri()) return
+    getCurrentWindow()
+      .startDragging()
+      .catch(() => {})
+  }, [])
+
+  /**
+   * ⚠️ 这个提前 return 必须在**所有 hooks 之后**。
+   *
+   * 踩坑实录（主上实测「点了加装直接变黑，没进度条没提示没界面」）：
+   * 初版把这段插在了 `onTheme` 与 `startDrag` 两个 useCallback **之间**，
+   * 于是 engineReady===false 时 `startDrag` 不会被调用 ——
+   * hook 数量比正常渲染少 1 个，React 抛 error #300
+   * （"Rendered fewer hooks than expected"），整棵树被卸载。
+   * 加上窗口是 transparent，用户看到的就是**一片纯黑**。
+   *
+   * 教训：React 的 hooks 必须**无条件、按固定顺序**执行；
+   * 任何 `if (...) return` 都只能放在全部 hooks 之后。
+   */
   if (engineReady === false) {
     return (
       <EngineSetup
@@ -92,16 +115,6 @@ export default function App() {
       />
     )
   }
-
-  /* chrome 空白处可拖动窗口；交互元素上不触发 */
-  const startDrag = useCallback((e: React.MouseEvent) => {
-    const t = e.target as HTMLElement
-    if (t.closest('button, a, input, select, textarea, [role="button"], [data-no-drag]')) return
-    if (!inTauri()) return
-    getCurrentWindow()
-      .startDragging()
-      .catch(() => {})
-  }, [])
 
   return (
     <div className="flex h-full flex-col bg-bg">
