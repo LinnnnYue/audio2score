@@ -92,8 +92,8 @@ export default function App() {
                     ? 'bg-accent-soft text-accent'
                     : clsx(
                         'text-ink-faint',
-                        '[@media(hover:hover)and(pointer:fine)]:hover:bg-accent-soft',
-                        '[@media(hover:hover)and(pointer:fine)]:hover:text-ink-dim',
+                        '[[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft',
+                        '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink-dim',
                       ),
                 )}
               >

@@ -274,8 +274,14 @@
     background: var(--accent-soft);
   }
 
-  /* ---------- stagger 错峰入场：列表项设 --i，延迟 = i * 55ms ---------- */
-  .stagger {
+  /* ---------- stagger 错峰入场：列表项设 --i，延迟 = i * 55ms ----------
+     注意：必须用 `.stagger.animate-*` 双类选择器（特异度 0-2-0）。
+     原因：`animate-*` 走的是 `animation` 简写，而简写会把 animation-delay
+     重置为 0s；若 .stagger 只有单类特异度且位置靠前，延迟会被静默吃掉。 */
+  .stagger.animate-rise-in,
+  .stagger.animate-pop-in,
+  .stagger.animate-log-in,
+  .stagger.animate-drop-in {
     animation-delay: calc(var(--i, 0) * 55ms);
   }
 

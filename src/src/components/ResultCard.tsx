@@ -53,7 +53,7 @@ export function ResultCard({ result, separationLabel, onReset }: Props) {
             <li
               key={`${t.name}-${i}`}
               style={{ '--i': i } as React.CSSProperties}
-              className="stagger animate-rise-in group/track rounded-[var(--r-sm)] px-2 py-1.5 transition-colors duration-150 ease-out [@media(hover:hover)and(pointer:fine)]:hover:bg-accent-soft"
+              className="stagger animate-rise-in group/track rounded-[var(--r-sm)] px-2 py-1.5 transition-colors duration-150 ease-out [[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft"
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="flex min-w-0 items-baseline gap-1.5">

@@ -147,6 +147,107 @@ def validate_audio_file(path: str) -> None:
             f"path={path}",
         )
 
+    _sniff_magic(path)
+
+
+# 偏移 0 处的魔数（4 字节以内）
+#
+# ⚠️ 维护铁律：新增条目前先用真实文件 dump 前 16 字节验证偏移，
+#    不要凭记忆写。见 _sniff_magic docstring 的 m4a 误伤事故。
+_MAGIC_HEAD0: tuple[bytes, ...] = (
+    b"RIFF",              # WAV
+    b"fLaC",              # FLAC
+    b"OggS",              # OGG / OPUS
+    b"FORM",              # AIFF（再校验 8:12 是 AIFF/AIFC）
+    b"\x1aE\xdf\xa3",     # Matroska / WebM
+    b"ID3",               # MP3 带 ID3v2 标签
+    b"MThd",              # MIDI
+    b"wvpk",              # WavPack
+    b"MPCK",              # Musepack
+    b"TTA1",              # TTA
+    b"FRM8",              # Monkey's Audio (APE)
+    b"DSD ",              # DSD
+    b"Mac ",              # 老式 Mac 音频
+)
+
+# 纯文本判定的强信号：这些字节出现在音频头部几乎不可能
+_TEXT_HINTS = (b"this", b"audio", b"not ", b"def ", b"<?xml", b"<!DOC", b"{", b"<html")
+
+
+def _sniff_magic(path: str) -> None:
+    """
+    读文件头 16 字节做内容嗅探，拦下「扩展名对但内容是垃圾」。
+
+    ### 踩坑实录（血泪，两轮）
+    1. 第一版只查文件大小 → 纯文本改名 .mp3、伪造 RIFF 头全被放行，
+       要等用户真拖进去才崩，太晚。
+    2. 第二版加魔数表，但**只比对开头的 4 字节** → **m4a 被误伤拦截**！
+       根因：MP4/M4A 的 `ftyp` box 位于**偏移 4~8**（前 4 字节是 box size，
+       大端 uint32，值通常 ≥ 8），不是文件开头。故 m4a/mp4 全部被当成
+       「未知格式」拒绝——而 m4a 正是主上从音乐平台拿音频的高频格式。
+    正解：MP4 系按偏移 4 匹配；`ba` 标签音轨同理。
+
+    教训：**魔数表必须逐个格式实测偏移，不能凭记忆写**。
+    任何「看起来合理」的常量都要拿真实文件验证。
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(16)
+    except OSError:
+        return  # 读不了就交给后续解码器报错
+
+    if not head:
+        return
+
+    # ── 偏移 0 处的魔数 ──
+    for magic in _MAGIC_HEAD0:
+        if head.startswith(magic):
+            return
+
+    # ── 需要偏移的格式 ──
+    # MP4/M4A/M4B: [4B box size][4B 'ftyp']
+    if head[4:8] == b"ftyp":
+        return
+    # QuickTime 老式 mov
+    if head[4:8] == b"moov" or head[4:8] == b"mdat" or head[4:8] == b"free":
+        return
+    # ADTS AAC 无固定魔数：2 字节同步字 0xFFF + 1 bit 层
+    if len(head) >= 2 and head[0] == 0xFF and (head[1] & 0xF0) == 0xF0:
+        return
+    # MP3 裸帧同步（11 位 1）——无 ID3 标签的 mp3 属此类
+    if len(head) >= 2 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0:
+        return
+    # ASF / WMA GUID: 30 26 B2 75 8E 66 CF 11
+    if head.startswith(b"\x30\x26\xb2\x75"):
+        return
+    # AIFF 的 FORM 之后是 AIFF/AIFC
+    if head.startswith(b"FORM") and head[8:12] in (b"AIFF", b"AIFC"):
+        return
+
+    # ── 看起来是纯文本 ──
+    try:
+        decoded = head.decode("utf-8")
+        is_text = True
+    except UnicodeDecodeError:
+        is_text = False
+
+    if is_text or any(h in head.lower() for h in _TEXT_HINTS):
+        try:
+            preview = decoded[:32].strip() if is_text else ""
+        except Exception:  # noqa: BLE001
+            preview = ""
+        raise AudioFormatError(
+            f"这个文件不是音频——开头是文字内容（\"{preview}\"）。\n"
+            f"它可能只是改了扩展名的文本文件，或已损坏。",
+            f"text-like magic: {head[:16]!r}",
+        )
+
+    raise AudioFormatError(
+        "无法识别这个文件的音频格式（文件头不符合任何已知音频格式）。\n"
+        "它可能已损坏，或是被加密 / DRM 保护的文件。",
+        f"unknown magic: {head[:16]!r}",
+    )
+
 
 def transcode_to_wav(src: str, workdir: str | None = None) -> str:
     """

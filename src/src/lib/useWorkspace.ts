@@ -90,8 +90,8 @@ export function useWorkspace(config: WorkspaceConfig) {
 
   /** 提交扒谱 */
   const submit = useCallback(async () => {
-    if (!mode || files.length === 0 || task.isRunning) return
-    if (needsTwoSlots && files.length < 2) return
+    if (!mode || task.isRunning) return
+    if (files.length < (needsTwoSlots ? 2 : 1)) return
 
     const req: TranscribeRequest = {
       mode,
@@ -132,14 +132,17 @@ export function useWorkspace(config: WorkspaceConfig) {
   }, [task])
 
   /** 提交按钮的可用性：文件齐、模式在、任务空闲 */
-  const canSubmit = Boolean(mode) && files.length > (needsTwoSlots ? 2 : 1) && !task.isRunning
+  const requiredSlots = needsTwoSlots ? 2 : 1
+  const canSubmit = Boolean(mode) && files.length >= requiredSlots && !task.isRunning
 
-  /** 缺文件的提示文案（双槽模式要说清缺哪个） */
+  /** 缺文件的提示文案。空态不提示（拖放区自己说明了），只提示"放了一半" */
   const missingHint = useMemo(() => {
     if (files.length === 0) return null
-    if (needsTwoSlots && files.length < 2) return '还需要伴奏音频'
+    if (files.length < requiredSlots) {
+      return needsTwoSlots ? '还需要伴奏音频' : null
+    }
     return null
-  }, [files.length, needsTwoSlots])
+  }, [files.length, needsTwoSlots, requiredSlots])
 
   return {
     // 数据

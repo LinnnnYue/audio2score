@@ -155,8 +155,8 @@ export function ParamPanel({ params, onChange, mode, disabled }: Props) {
             'flex w-full items-center gap-1.5 rounded-[var(--r-sm)] px-1.5 py-1',
             'text-[11px] font-medium text-ink-faint',
             'transition-colors duration-150 ease-out',
-            '[@media(hover:hover)and(pointer:fine)]:hover:bg-accent-soft',
-            '[@media(hover:hover)and(pointer:fine)]:hover:text-ink-dim',
+            '[[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft',
+            '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink-dim',
           )}
         >
           <ChevronDown
@@ -237,8 +237,8 @@ function FieldShell({
               'flex h-[14px] w-[14px] items-center justify-center rounded-full',
               'text-[9px] font-semibold text-ink-faint',
               'border border-line transition-colors duration-150 ease-out',
-              '[@media(hover:hover)and(pointer:fine)]:hover:border-accent',
-              '[@media(hover:hover)and(pointer:fine)]:hover:text-accent',
+              '[[@media(hover:hover)_and_(pointer:fine)]]:hover:border-accent',
+              '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-accent',
             )}
           >
             ?
@@ -323,7 +323,7 @@ function NumField({
               'active:scale-[0.96]',
               auto
                 ? 'border-transparent bg-accent-soft text-accent'
-                : 'border-line text-ink-faint [@media(hover:hover)and(pointer:fine)]:hover:border-[var(--border-strong)]',
+                : 'border-line text-ink-faint [[@media(hover:hover)_and_(pointer:fine)]]:hover:border-[var(--border-strong)]',
             )}
           >
             自动
@@ -357,29 +357,35 @@ function SliderField({
   return (
     <FieldShell label={label} hint={hint}>
       <div className="flex items-center gap-2.5">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          /* 轨道用渐变模拟"已填充"段，避免额外DOM */
-          style={{
-            background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--stage-track) ${pct}%, var(--stage-track) 100%)`,
-          }}
-          className="h-[32px] min-w-0 flex-1 cursor-pointer appearance-none rounded-full
-            [&::-webkit-slider-runnable-track]:h-[3px] [&::-webkit-slider-runnable-track]:rounded-full
-            [&::-webkit-slider-runnable-track]:bg-transparent
-            [&::-webkit-slider-thumb]:mt-[-5px] [&::-webkit-slider-thumb]:h-[13px] [&::-webkit-slider-thumb]:w-[13px]
-            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
-            [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--accent)]
-            [&::-webkit-slider-thumb]:bg-[var(--surface-3)]
-            [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150
-            [&::-webkit-slider-thumb]:ease-out
-            active:[&::-webkit-slider-thumb]:scale-[1.15]
-            [@media(hover:hover)and(pointer:fine)]:hover:[&::-webkit-slider-thumb]:scale-[1.08]"
-        />
+        {/* 轨道单独一层：input 自身透明，填充段用绝对定位的div 画。
+            （若把渐变设在 input 上，会铺满 32px 高的输入框而非 3px 轨道） */}
+        <div className="relative min-w-0 flex-1">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-[var(--stage-track)]">
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-150 ease-out"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="relative h-[32px] w-full cursor-pointer appearance-none bg-transparent
+              [&::-webkit-slider-runnable-track]:h-[3px] [&::-webkit-slider-runnable-track]:bg-transparent
+              [&::-webkit-slider-thumb]:mt-[-5px] [&::-webkit-slider-thumb]:h-[13px] [&::-webkit-slider-thumb]:w-[13px]
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
+              [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--accent)]
+              [&::-webkit-slider-thumb]:bg-[var(--surface-3)]
+              [&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(0,0,0,0.2)]
+              [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150
+              [&::-webkit-slider-thumb]:ease-out
+              active:[&::-webkit-slider-thumb]:scale-[1.15]
+              [[@media(hover:hover)_and_(pointer:fine)]]:hover:[&::-webkit-slider-thumb]:scale-[1.08]"
+          />
+        </div>
         <span className="num w-[52px] shrink-0 text-right text-[11.5px] text-ink">
           {format(value)}
         </span>
@@ -414,8 +420,8 @@ function ToggleRow({
                 'flex h-[14px] w-[14px] items-center justify-center rounded-full',
                 'text-[9px] font-semibold text-ink-faint border border-line',
                 'transition-colors duration-150 ease-out',
-                '[@media(hover:hover)and(pointer:fine)]:hover:border-accent',
-                '[@media(hover:hover)and(pointer:fine)]:hover:text-accent',
+                '[[@media(hover:hover)_and_(pointer:fine)]]:hover:border-accent',
+                '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-accent',
               )}
             >
               ?

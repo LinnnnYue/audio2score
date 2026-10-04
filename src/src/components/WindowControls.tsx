@@ -2,7 +2,7 @@
  * WindowControls.tsx — 无边框窗口的右上角三键
  *
  * 命中区 38×38（Windows 最小舒适值），视觉图标仅 10px，克制。
- * hover 态包在 @media(hover:hover)and(pointer:fine) 内，触屏不触发幽灵态。
+ * hover 态包在 [@media(hover:hover)_and_(pointer:fine)] 内，触屏不触发幽灵态。
  * 这三个键必须 stopPropagation，否则会被 chrome 的拖动区吃掉点击。
  */
 
@@ -13,7 +13,7 @@ import clsx from 'clsx'
 const inTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-const HOVER = '[@media(hover:hover)and(pointer:fine)]:hover:'
+const HOVER = '[[@media(hover:hover)_and_(pointer:fine)]]:hover:'
 
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false)

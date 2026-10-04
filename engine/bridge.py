@@ -172,12 +172,26 @@ def handle_transcribe(req_id: str, payload: dict) -> None:
 
 
 def handle_probe(req_id: str, payload: dict) -> None:
+    """
+    探测音频基本信息，供 UI 在用户拖入文件时立即显示。
+
+    ### 踩坑实录（对抗式自测逮到）
+    初版只做廉价校验（存在/体积/魔数/扩展名）就返回 `ok:true`。结果一个
+    「RIFF 头合法但内容全 0」的伪造 wav 被判为可用，且 `duration` 返回 0.0
+    ——UI 会显示「0 秒」却仍允许提交，用户白等一次失败。
+    正解：**duration 拿不到就必须判失败**，不给「可用但时长 0」的中间态。
+    """
     from format_guard import AudioFormatError, probe_duration, validate_audio_file
 
     path = payload.get("path", "")
     try:
         validate_audio_file(path)
         duration = probe_duration(path)
+        if duration <= 0:
+            raise AudioFormatError(
+                "读不出这个音频的时长，文件可能已损坏或不是有效的音频。",
+                f"probe_duration returned {duration} for {path}",
+            )
         emit(
             {
                 "type": "result",

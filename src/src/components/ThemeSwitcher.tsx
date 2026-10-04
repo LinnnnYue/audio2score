@@ -53,9 +53,9 @@ export function ThemeSwitcher({ value, onChange }: Props) {
           'border border-transparent',
           'transition-[background-color,color,border-color] duration-150 ease-out',
           'active:scale-[0.97]',
-          '[@media(hover:hover)and(pointer:fine)]:hover:border-line',
-          '[@media(hover:hover)and(pointer:fine)]:hover:bg-accent-soft',
-          '[@media(hover:hover)and(pointer:fine)]:hover:text-ink',
+          '[[@media(hover:hover)_and_(pointer:fine)]]:hover:border-line',
+          '[[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft',
+          '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink',
           open && 'border-line bg-accent-soft text-ink',
         )}
       >
@@ -90,7 +90,7 @@ export function ThemeSwitcher({ value, onChange }: Props) {
               'stagger flex w-full items-center gap-2.5 rounded-[var(--r-sm)] px-2 py-1.5 text-left',
               'transition-colors duration-150 ease-out',
               'active:scale-[0.98]',
-              t.id === value ? 'bg-accent-soft' : '[@media(hover:hover)and(pointer:fine)]:hover:bg-surface-3',
+              t.id === value ? 'bg-accent-soft' : '[[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-surface-3',
             )}
           >
             <Swatch colors={t.swatch} />

@@ -93,7 +93,7 @@ export function ModeSelect({ modes, value, onChange, disabled }: Props) {
           'active:scale-[0.99]',
           disabled && 'pointer-events-none opacity-45',
           open && 'border-accent',
-          !open && '[@media(hover:hover)and(pointer:fine)]:hover:border-[var(--border-strong)]',
+          !open && '[[@media(hover:hover)_and_(pointer:fine)]]:hover:border-[var(--border-strong)]',
         )}
       >
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-accent-soft text-accent">

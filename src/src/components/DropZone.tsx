@@ -191,7 +191,7 @@ export function DropZone({
                   'bg-accent-soft text-accent',
                   compact ? 'h-8 w-8' : 'h-10 w-10',
                   'transition-transform duration-200 ease-out',
-                  '[@media(hover:hover)and(pointer:fine)]:group-hover:scale-[1.06]',
+                  '[[@media(hover:hover)_and_(pointer:fine)]]:group-hover:scale-[1.06]',
                 )}
               >
                 {dragging ? <Upload size={compact ? 15 : 18} strokeWidth={1.9} /> : <FileAudio size={compact ? 15 : 18} strokeWidth={1.9} />}
@@ -240,7 +240,7 @@ export function DropZone({
               ))}
             </ul>
             {!disabled && (
-              <p className="mt-2 flex items-center gap-1 text-[10.5px] text-ink-faint opacity-0 transition-opacity duration-150 ease-out [@media(hover:hover)and(pointer:fine)]:group-hover:opacity-100">
+              <p className="mt-2 flex items-center gap-1 text-[10.5px] text-ink-faint opacity-0 transition-opacity duration-150 ease-out [[@media(hover:hover)_and_(pointer:fine)]]:group-hover:opacity-100">
                 <FolderOpen size={11} strokeWidth={1.8} />
                 点击更换
               </p>

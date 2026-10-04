@@ -568,13 +568,34 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
         track_notes_list: list[list[dict]] = []
         roles: list[str] = []
 
+        # ---------- 参数钳制（对抗式自测发现的崩溃点）----------
+        # 踩坑实录：tempo=0 传进 pretty_midi.PrettyMIDI(initial_tempo=0) 会在
+        # 内部算 `60.0/(initial_tempo*self.resolution)` 时抛 ZeroDivisionError，
+        # 整个任务崩掉。经 tests/adversarial.py 的边界数值用例逮到。
+        # MIDI 的 tempo 范围是 [0, 0xFFFFFF] 微秒/四分音符，实际可用 BPM 约
+        # 20~300，超出这个范围人耳已无法分辨，钳到边界即可。
+        safe_tempo = min(max(float(req.tempo), 20.0), 300.0)
+        if abs(safe_tempo - float(req.tempo)) > 1e-6:
+            warnings.append(
+                f"速度 {req.tempo} BPM 超出可用范围（20~300），已按 {safe_tempo:.0f} BPM 处理。"
+            )
+
+        # n_peaks 至少为 1，否则 estimate_pitches 内部循环恒不执行
+        safe_n_peaks = max(1, int(n_peaks))
+        if safe_n_peaks != n_peaks:
+            warnings.append(f"最大同时音符数 {n_peaks} 无效，已按 {safe_n_peaks} 处理。")
+
+        # onset 灵敏度钳到 [0,1]，否则 librosa 内部会出怪结果
+        safe_onset = min(max(float(req.onset_threshold), 0.0), 1.0)
+        safe_pitch = min(max(float(req.pitch_threshold), 0.0), 1.0)
+
         if req.mode == "full_auto":
             assert sep_result is not None
             # 伴奏先（多音高），人声后（单旋律）——与上游 main.py 的顺序一致
             _switch("spectrum", 0.0)
             accomp = _transcribe_cqt(
-                sep_result.accompaniment_path, n_peaks, req.hop_length,
-                req.onset_threshold, req.pitch_threshold, req.min_note_duration,
+                sep_result.accompaniment_path, safe_n_peaks, req.hop_length,
+                safe_onset, safe_pitch, req.min_note_duration,
                 req.perceptual, req.simplify, req.piano_mode,
                 _mono, "伴奏", 0.0, 0.45,
             )
@@ -614,8 +635,8 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             _switch("spectrum", 0.0)
             track_notes_list = [
                 _transcribe_cqt(
-                    req.input_path, n_peaks, req.hop_length,
-                    req.onset_threshold, req.pitch_threshold, req.min_note_duration,
+                    req.input_path, safe_n_peaks, req.hop_length,
+                    safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
                     _mono, "乐器",
                 )
@@ -626,8 +647,8 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             _switch("spectrum", 0.0)
             track_notes_list = [
                 _transcribe_cqt(
-                    req.input_path, n_peaks, req.hop_length,
-                    req.onset_threshold, req.pitch_threshold, req.min_note_duration,
+                    req.input_path, safe_n_peaks, req.hop_length,
+                    safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
                     _mono, "乐器",
                 )
@@ -650,8 +671,8 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             for idx, extra in enumerate(req.extra_inputs):
                 _switch("spectrum", span * (idx + 1))
                 accomp = _transcribe_cqt(
-                    extra, n_peaks, req.hop_length,
-                    req.onset_threshold, req.pitch_threshold, req.min_note_duration,
+                    extra, safe_n_peaks, req.hop_length,
+                    safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
                     _mono, "伴奏", 0.0, span,
                 )
@@ -661,7 +682,7 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
         else:
             raise TranscribeError(f"未知的扒谱模式：{req.mode}", f"mode={req.mode}")
 
-        # ---------- 阶段 5：导出 ----------
+    # ---------- 阶段 5：导出 ----------
         _mono("export", max(0.9, _progress_state["last"]), "正在生成 MIDI…")
 
         if any(len(t) == 0 for t in track_notes_list):
@@ -672,7 +693,7 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             )
 
         tracks = _write_midi(
-            track_notes_list, req.output_path, req.tempo, roles, req.track_names
+            track_notes_list, req.output_path, safe_tempo, roles, req.track_names
         )
 
         total = sum(t["notes"] for t in tracks)

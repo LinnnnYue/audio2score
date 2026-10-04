@@ -29,7 +29,6 @@ export function SongTranscribe() {
   }, [])
 
   const running = task.isRunning
-  const idle = task.status === 'idle'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

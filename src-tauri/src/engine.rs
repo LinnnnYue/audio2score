@@ -92,8 +92,6 @@ pub struct EngineState {
     engine_dir: Mutex<Option<PathBuf>>,
 }
 
-type Engine = State<'static, EngineState>;
-
 // ─────────────────────────────────────────────────────────────
 // 定位引擎
 // ─────────────────────────────────────────────────────────────

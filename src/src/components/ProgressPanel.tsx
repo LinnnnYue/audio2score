@@ -131,7 +131,7 @@ export function ProgressPanel({ task, onCancel, stageLabels }: Props) {
           <p className="whitespace-pre-line text-[12px] leading-relaxed text-bad">{error.message}</p>
           {error.detail && (
             <details className="group/det mt-1.5">
-              <summary className="cursor-pointer list-none text-[10.5px] text-ink-faint transition-colors duration-150 ease-out [@media(hover:hover)and(pointer:fine)]:hover:text-ink-dim">
+              <summary className="cursor-pointer list-none text-[10.5px] text-ink-faint transition-colors duration-150 ease-out [[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink-dim">
                 技术细节
               </summary>
               <p className="num mt-1 break-all text-[10px] leading-relaxed text-ink-faint">

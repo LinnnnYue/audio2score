@@ -68,7 +68,7 @@ export function EnvBanner({ env, needsSeparation }: Props) {
           type="button"
           onClick={() => setDismissed(true)}
           aria-label="关闭提示"
-          className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-ink-faint transition-colors duration-150 ease-out active:scale-[0.94] [@media(hover:hover)and(pointer:fine)]:hover:bg-accent-soft"
+          className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-ink-faint transition-colors duration-150 ease-out active:scale-[0.94] [[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft"
         >
           <X size={11} strokeWidth={2} />
         </button>

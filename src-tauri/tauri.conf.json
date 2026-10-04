@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.musicxml.scribe",
   "build": {
-    "beforeDevCommand": "npm --prefix ../src run dev",
+    "beforeDevCommand": "npm --prefix src run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm --prefix ../src run build",
+    "beforeBuildCommand": "npm --prefix src run build",
     "frontendDist": "../src/dist"
   },
   "app": {

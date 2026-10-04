@@ -1,0 +1,16 @@
+{
+  "name": "musicxml-scribe-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "扒谱助手 — 音频自动扒谱桌面应用（工作区根）",
+  "scripts": {
+    "dev": "npm --prefix src run dev",
+    "build": "npm --prefix src run build && npm run tauri:build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1"
+  }
+}

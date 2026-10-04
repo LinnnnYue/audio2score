@@ -113,27 +113,40 @@ def main() -> None:
         """
         读当前进程的工作集内存（RSS）。
 
-        踩坑实录：初版用 ctypes 调 `psapi.GetProcessMemoryInfo`，但没设 argtypes，
-        64 位下结构体按错误的对齐解释，返回值恒为 0 —— 一度让「内存 < 4GB」
-        这条验收变成无效证据。**教训：拿到 0 要先怀疑采样器坏掉，而不是
-        相信「内存真的用得极少」。** 现改用 tasklist 读，稳且无需 ctypes。
+        踩坑实录（四层坑，全踩过——这条函数是本项目「反复鞭尸」的典型产物）：
+        1. ctypes 调 `psapi.GetProcessMemoryInfo` 未设 argtypes，64 位下结构体
+           对齐解释错误，返回恒 0。
+        2. 改用 tasklist，但在 Git Bash 里 `/FI` `/FO` 被 MSYS 当路径改写。
+           **注意：这是 Bash 层的坑，Python subprocess 传参列表不受影响**，
+           所以必须从 Python 里调。
+        3. CSV 输出内存是 `"20,080 K"`，带千分位逗号，直接 int() 抛异常被
+           except 吞成 0。
+        4. ⚠️ 最阴的一层：改用 `rsplit(",", 1)` 想取最后一列，结果**千分位逗�
+           本身成了分隔符**——`"20,080 K"` 被劈成 `20` 和 `080 K"`，
+           解析出 80KB。修法：用正则抓末尾的 `"数字 K"`，不按逗号切。
+
+        教训：拿到 0 或明显离谱的数（0.4MB 跑 3 分钟音频）先怀疑采样器，
+        别急着相信「内存真的用得极少」。**离谱的值比明显的错更危险。**
         """
         try:
+            import re
             import subprocess
 
             out = subprocess.run(
-                ["tasklist", "/FI", "PID eq %d" % os.getpid(), "/FO", "CSV", "/NH"],
+                ["tasklist", "/FI", f"PID eq {os.getpid()}", "/FO", "CSV", "/NH"],
                 capture_output=True,
                 text=True,
                 timeout=15,
             )
-            # CSV: "name","pid","session","#","mem(KB)"
             for line in out.stdout.splitlines():
-                if f'"{os.getpid()}"' in line:
-                    kb = int(line.rsplit(",", 1)[-1].strip().strip('"'))
-                    return kb * 1024
-        except Exception:  # noqa: BLE001
-            pass
+                if f'"{os.getpid()}"' not in line:
+                    continue
+                # 末尾形如 "20,080 K" —— 用正则而非逗号切分
+                m = re.search(r'"([\d,]+)\s*K"\s*$', line)
+                if m:
+                    return int(m.group(1).replace(",", "")) * 1024
+        except Exception as e:  # noqa: BLE001
+            print(f"      [warn] RSS 采样失败: {type(e).__name__}: {e}", file=sys.stderr)
         return 0
 
     # ── 1. 分离 ──

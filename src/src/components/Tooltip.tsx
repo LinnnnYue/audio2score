@@ -38,7 +38,7 @@ export function Tooltip({ content, children, side = 'top', className }: Props) {
           'group-hover/tt:scale-100 group-hover/tt:opacity-100',
           'group-focus-within/tt:scale-100 group-focus-within/tt:opacity-100',
           side === 'top' ? 'bottom-[calc(100%+7px)]' : 'top-[calc(100%+7px)]',
-          'hidden [@media(hover:hover)and(pointer:fine)]:block',
+          'hidden [[@media(hover:hover)_and_(pointer:fine)]]:block',
         )}
       >
         {content}
