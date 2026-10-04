@@ -13,10 +13,12 @@ interface Props {
   content: ReactNode
   children: ReactNode
   side?: 'top' | 'bottom'
+  /** 内容为结构化说明（含小标题/分行）时置 true，放宽到 300px */
+  wide?: boolean
   className?: string
 }
 
-export function Tooltip({ content, children, side = 'top', className }: Props) {
+export function Tooltip({ content, children, side = 'top', wide, className }: Props) {
   const id = useId()
   const origin = side === 'top' ? 'bottom center' : 'top center'
 
@@ -30,7 +32,8 @@ export function Tooltip({ content, children, side = 'top', className }: Props) {
         id={id}
         style={{ '--tt-origin': origin } as CSSProperties}
         className={clsx(
-          'pointer-events-none absolute left-1/2 z-50 w-max max-w-[264px] -translate-x-1/2',
+          'pointer-events-none absolute left-1/2 z-50 w-max -translate-x-1/2',
+          wide ? 'max-w-[300px]' : 'max-w-[264px]',
           'rounded-[var(--r-sm)] border border-line bg-surface-2 px-2.5 py-1.5',
           'text-[11px] font-normal leading-relaxed tracking-normal text-ink-dim shadow-pop',
           'origin-[var(--tt-origin)] scale-95 opacity-0',

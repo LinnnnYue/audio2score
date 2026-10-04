@@ -8,12 +8,31 @@
  * 设计取向：工具面板感 —— 参数密而不乱，左标签右控件，等宽数字对齐，
  * 高级项折叠（默认收起）避免首屏信息过载。
  *
+ * ── 可视化提示（本次新增）────────────────────────────────────────
+ * 原则：**不必 hover、不必点，扫一眼就懂「这个钮往哪边拖会发生什么」。**
+ *   ① 方向轴（DirAxis）—— 把两个方向的后果直接标在控件两端；
+ *      滑块轨道上加一根竖线标出**默认值位置**，一眼看出自己偏在哪边。
+ *   ② 数量可视化（CountDots）—— 「同时音高数」用 N 个圆点画出「每格几个音」。
+ *   ③ 影响范围徽章（Badge）—— 开关类标出它到底动了多少东西
+ *      （钢琴模式「改 6 项」、感知模式「会重写音符」）。
+ *   ④ ? 卡片（HintCard）—— 从纯文字升级为「本质 / 往左 / 往右 / 何时动」结构。
+ *
+ * ⚠️ 方向文案的**唯一依据是引擎源码**，不是面板旧提示语：
+ *   - 起音灵敏度：onset_detection.py 里 `find_peaks(height=阈值×0.6)`，
+ *     值越大门槛越高 → **检出的起音越少**。旧文案「越高越容易切出短音符」
+ *     与之相反，已删除（不要改回去）。
+ *   - 最小音符时长：note_tracking.py 里 `max(0.05, 帧数×hop÷22050)`，
+ *     有 0.05 秒硬下限；帧移不同则同一档位的实际含义不同。
+ *   - 钢琴模式：pipeline.py 里一次性覆盖 6 项（含 n_peaks=2）。
+ * 面板内**只写机制，不写推荐值** —— 具体什么歌填什么值属未验证建议，
+ * 由外部文档承载，不固化进 UI。
+ *
  * 关键约束：感知模式（perceptual）默认关，且必须带 tooltip 说明
  * 「开启会重写音符，可能丢失和声声部」——这是引擎实测踩过的坑。
  */
 
 import { ChevronDown, RotateCcw } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { TranscribeMode } from '../lib/types'
 import { DEFAULT_PARAMS, type Params } from '../lib/params'
@@ -45,6 +64,8 @@ export function ParamPanel({ params, onChange, mode, disabled }: Props) {
   const set = <K extends keyof Params>(k: K, v: Params[K]) => onChange({ ...params, [k]: v })
 
   const nPeaksHint = mode ? (params.nPeaks ?? DEFAULT_N_PEAKS[mode]) : null
+  /** 当前实际生效的同时音高数（自动时取模式默认） */
+  const effPeaks = params.nPeaks ?? nPeaksHint ?? DEFAULT_N_PEAKS.basic
 
   return (
     <div className={clsx('flex flex-col', disabled && 'pointer-events-none opacity-50')}>
@@ -52,73 +73,129 @@ export function ParamPanel({ params, onChange, mode, disabled }: Props) {
       <div className="flex flex-col gap-3.5">
         <NumField
           label="同时音高数"
-          hint={`每帧最多取几个音。越高越容易误判杂音。此模式推荐 ${nPeaksHint ?? '—'}`}
-          value={params.nPeaks ?? nPeaksHint ?? DEFAULT_N_PEAKS.basic}
+          hint={
+            <HintCard
+              what="每一格最多保留几个音。和弦越厚，需要的数越大。"
+              smaller="只留最强的一两个音：旋律干净，但和弦会消失"
+              bigger="和弦更完整，但泛音容易被当成额外声部，冒出无关碎音"
+              when="和弦不全 → 调大；谱面出现无关碎音 → 调小"
+            />
+          }
+          value={effPeaks}
           auto={params.nPeaks === null}
           min={1}
           max={12}
           step={1}
           onChange={(v) => set('nPeaks', v)}
           onAuto={() => set('nPeaks', null)}
+          below={<CountDots value={effPeaks} />}
         />
 
         <NumField
           label="BPM"
-          hint="写入 MIDI 的速度。影响播放速度，不影响音符识别"
+          hint={
+            <HintCard
+              what="只写进 MIDI 的速度标记，完全不参与音符识别。"
+              when="填成原曲的真实速度；填错会导致 MuseScore 里小节线全错位"
+            />
+          }
           value={params.tempo}
           min={30}
           max={300}
           step={1}
           suffix="BPM"
           onChange={(v) => set('tempo', v)}
+          below={<NoteLine>决定小节线位置 · 不影响识别</NoteLine>}
         />
 
         <SliderField
           label="起音灵敏度"
-          hint="越高越容易切出短音符。过低会合并相邻音符"
+          hint={
+            <HintCard
+              what="判定「这里算不算一个新音的开头」的门槛。它实质是一道阈值，不是灵敏度。"
+              smaller="门槛低 → 检出的起音更多，音符更碎，也更容易把杂音切开"
+              bigger="门槛高 → 检出的起音更少，音符更少更长、谱面更干净"
+              when="副歌毛刺多 → 调大；快歌漏音 → 调小"
+            />
+          }
           value={params.onsetThreshold}
           min={0.05}
           max={0.8}
           step={0.01}
           format={(v) => v.toFixed(2)}
+          defaultValue={DEFAULT_PARAMS.onsetThreshold}
           onChange={(v) => set('onsetThreshold', v)}
+          below={<DirAxis from="音更碎 · 更敏感" to="音更少 · 更干净" />}
         />
 
         <SliderField
           label="最小音符时长"
-          hint="短于此长度的音符会被丢弃，用于压掉抖动杂音"
+          hint={
+            <HintCard
+              what="短于这个长度的音会被直接删掉。这是「丢内容」的头号开关。"
+              smaller="保留更多短音、装饰音，但抖动杂音也可能被留下"
+              bigger="杂音毛刺被清掉，但真实存在的短音符可能被误删"
+              when="谱面毛刺多 → 调大；快歌漏短音 → 调小"
+              warn="单位是秒（帧数 × 帧移 ÷ 22050），且有 0.05 秒下限 —— 帧移不同时，同一档位的实际含义也不同"
+            />
+          }
           value={params.minNoteDuration}
           min={1}
           max={16}
           step={1}
           format={(v) => `${v} 帧`}
+          defaultValue={DEFAULT_PARAMS.minNoteDuration}
           onChange={(v) => set('minNoteDuration', v)}
+          below={<DirAxis from="留更多短音" to="删掉短音 · 更干净" />}
         />
 
         <SliderField
           label="精简强度"
-          hint="合并时值相近的音符，0为关闭"
+          hint={
+            <HintCard
+              what="扒完之后做一次打扫：去毛刺、合并挨得太近的同音、每个时间窗只留一个音。"
+              smaller="0 表示完全关闭，忠实保留全部识别结果"
+              bigger="谱面明显变简洁，但会把真实的密集音符一起合掉"
+              when="音符都对但读着乱 → 1–2 档；快歌密集音符保持 0"
+            />
+          }
           value={params.simplify}
           min={0}
           max={5}
           step={1}
           format={(v) => (v === 0 ? '关闭' : String(v))}
+          defaultValue={DEFAULT_PARAMS.simplify}
           onChange={(v) => set('simplify', v)}
+          below={<DirAxis from="一个都不删" to="删得最狠" />}
         />
       </div>
 
       {/* ---- 开关 ---- */}
-      <div className="mt-4 flex flex-col gap-2.5 border-t border-line pt-3.5">
+      <div className="mt-4 flex flex-col gap-3 border-t border-line pt-3.5">
         <ToggleRow
           label="钢琴模式"
-          hint="更高时间分辨率 + 中值滤波，钢琴与弦乐更准，其他乐器可能过度平滑"
+          badge={<Badge>改 6 项</Badge>}
+          hint={
+            <HintCard
+              what="一次改 6 个设置：帧移 256、起音 0.15、音高 0.2、同时音高数 2、逐帧中值滤波、精简 2 档。"
+              when="钢琴、弦乐这类音头清晰的乐器"
+              warn="⚠ 会覆盖你手动填的那几项 —— 尤其是「同时音高数」被压到 2，厚和弦会丢"
+            />
+          }
           checked={params.pianoMode}
           onChange={(v) => set('pianoMode', v)}
         />
         <ToggleRow
           label="感知模式"
-          /* 主上要求：必须原文点出风险 */
-          hint="开启会重写音符，可能丢失和声声部。默认关闭，仅在多轨结果明显有杂音时尝试"
+          badge={<Badge tone="danger">会重写音符</Badge>}
+          hint={
+            /* 主上要求：必须原文点出风险 */
+            <HintCard
+              what="换一套算法（跟着起音走 + 感知过滤），会对识别出的音符做取舍与重写。"
+              when="其他参数都试过、多轨结果仍明显有杂音时，才最后试它"
+              warn="⚠ 开启会重写音符，可能丢失和声声部。默认关闭。"
+            />
+          }
           checked={params.perceptual}
           danger={params.perceptual}
           onChange={(v) => set('perceptual', v)}
@@ -159,22 +236,39 @@ export function ParamPanel({ params, onChange, mode, disabled }: Props) {
             <div className="flex flex-col gap-3.5">
               <NumField
                 label="帧移长度"
-                hint="采样 hop。越小时间分辨率越高，耗时与内存也越高"
+                hint={
+                  <HintCard
+                    what="把音频切成多大的格子。它是谱面的最小时间单位，也是精细度的总闸。"
+                    smaller="格子更小 → 时间分辨率更高，能看清密集快音符；代价是耗时与内存上升"
+                    bigger="格子更大 → 更快更省资源，但快音符会糊成一片、大量漏音"
+                    when="快歌漏音时第一个该动的（512 → 256）"
+                  />
+                }
                 value={params.hopLength}
                 min={64}
                 max={2048}
                 step={64}
                 onChange={(v) => set('hopLength', v)}
+                below={<DirAxis from="更精细 · 更慢" to="更粗 · 更快" />}
               />
               <SliderField
                 label="音高阈值"
-                hint="CQT 峰值显著性门槛，越高只保留最明显的音"
+                hint={
+                  <HintCard
+                    what="判断「这个峰算不算一个真音」的显著性门槛。"
+                    smaller="弱音、轻声、内声部会被保留，但底噪也可能变成音符"
+                    bigger="只留最明显最强的音，谱面干净但弱声部会整个消失"
+                    when="和弦不全或丢内声部 → 调小；底噪变成音符 → 调大"
+                  />
+                }
                 value={params.pitchThreshold}
                 min={0.01}
                 max={0.5}
                 step={0.01}
                 format={(v) => v.toFixed(2)}
+                defaultValue={DEFAULT_PARAMS.pitchThreshold}
                 onChange={(v) => set('pitchThreshold', v)}
+                below={<DirAxis from="留下弱音 · 内声部" to="只留明显的音" />}
               />
               <button
                 type="button"
@@ -193,23 +287,120 @@ export function ParamPanel({ params, onChange, mode, disabled }: Props) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 可视化提示零件
+ * ------------------------------------------------------------------ */
+
+/** 方向轴：把「往左拖 / 往右拖」的后果标在控件两端（常驻，无需 hover） */
+function DirAxis({ from, to }: { from: string; to: string }) {
+  return (
+    <div className="mt-1.5 flex items-center gap-2 text-[10.5px] leading-none text-ink-faint">
+      <span className="shrink-0 whitespace-nowrap">{from}</span>
+      <span className="h-px min-w-2 flex-1 bg-line" aria-hidden />
+      <span className="shrink-0 whitespace-nowrap text-right">{to}</span>
+    </div>
+  )
+}
+
+/** 单行说明：用于不适合画方向轴的参数（如 BPM） */
+function NoteLine({ children }: { children: ReactNode }) {
+  return <div className="mt-1.5 text-[10.5px] leading-none text-ink-faint">{children}</div>
+}
+
+/** 数量可视化：N 个实心圆点 = 每格最多留 N 个音 */
+function CountDots({ value, max = 12 }: { value: number; max?: number }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="flex items-center gap-[3px]" aria-hidden>
+        {Array.from({ length: max }, (_, i) => (
+          <span
+            key={i}
+            className={clsx(
+              'h-[5px] w-[5px] rounded-full transition-colors duration-150 ease-out',
+              i < value ? 'bg-accent' : 'bg-line',
+            )}
+          />
+        ))}
+      </span>
+      <span className="text-[10.5px] leading-none text-ink-faint">
+        每格最多同时留 {value} 个音
+      </span>
+    </div>
+  )
+}
+
+/** 影响范围徽章：开关类参数标出「它到底动了多少东西」 */
+function Badge({ children, tone = 'accent' }: { children: ReactNode; tone?: 'accent' | 'danger' }) {
+  return (
+    <span
+      className={clsx(
+        'shrink-0 rounded-[5px] border px-1.5 py-[1px] text-[10px] font-medium leading-[15px]',
+        tone === 'danger'
+          ? 'border-[rgba(180,68,58,0.32)] bg-[var(--danger-soft)] text-bad'
+          : 'border-[var(--accent-border)] bg-accent-soft text-accent',
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** ? 卡片：本质 / 往左 / 往右 / 何时动 / 警示 */
+function HintCard({
+  what,
+  smaller,
+  bigger,
+  when,
+  warn,
+}: {
+  what: string
+  smaller?: string
+  bigger?: string
+  when?: string
+  warn?: string
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div>{what}</div>
+      {(smaller || bigger) && (
+        <div className="flex flex-col gap-1 border-t border-line pt-1.5">
+          {smaller && (
+            <div>
+              <span className="font-semibold text-ink">往左·调小</span> · {smaller}
+            </div>
+          )}
+          {bigger && (
+            <div>
+              <span className="font-semibold text-ink">往右·调大</span> · {bigger}
+            </div>
+          )}
+        </div>
+      )}
+      {when && <div className="text-[10.5px] text-ink-faint">何时该动：{when}</div>}
+      {warn && <div className="text-[10.5px] font-medium text-warn">{warn}</div>}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * 子控件
  * ------------------------------------------------------------------ */
 
 function FieldShell({
   label,
   hint,
+  below,
   children,
 }: {
   label: string
-  hint: string
-  children: React.ReactNode
+  hint: ReactNode
+  below?: ReactNode
+  children: ReactNode
 }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-1.5">
         <span className="text-[11.5px] font-medium text-ink-dim">{label}</span>
-        <Tooltip content={hint}>
+        <Tooltip content={hint} wide>
           <button
             type="button"
             aria-label={`${label} 说明`}
@@ -226,6 +417,7 @@ function FieldShell({
         </Tooltip>
       </div>
       {children}
+      {below}
     </div>
   )
 }
@@ -241,9 +433,10 @@ function NumField({
   auto,
   onChange,
   onAuto,
+  below,
 }: {
   label: string
-  hint: string
+  hint: ReactNode
   value: number
   min: number
   max: number
@@ -252,10 +445,11 @@ function NumField({
   auto?: boolean
   onChange: (v: number) => void
   onAuto?: () => void
+  below?: ReactNode
 }) {
   const clamp = (v: number) => Math.min(max, Math.max(min, v))
   return (
-    <FieldShell label={label} hint={hint}>
+    <FieldShell label={label} hint={hint} below={below}>
       <div className="flex items-center gap-1.5">
         <button
           type="button"
@@ -322,20 +516,28 @@ function SliderField({
   max,
   step,
   format,
+  defaultValue,
   onChange,
+  below,
 }: {
   label: string
-  hint: string
+  hint: ReactNode
   value: number
   min: number
   max: number
   step: number
   format: (v: number) => string
+  /** 传入默认值时，在轨道上画一根竖线标出默认位置 */
+  defaultValue?: number
   onChange: (v: number) => void
+  below?: ReactNode
 }) {
   const pct = ((value - min) / (max - min)) * 100
+  const defPct =
+    defaultValue === undefined ? null : ((defaultValue - min) / (max - min)) * 100
+
   return (
-    <FieldShell label={label} hint={hint}>
+    <FieldShell label={label} hint={hint} below={below}>
       <div className="flex items-center gap-2.5">
         {/* 轨道单独一层：input 自身透明，填充段用绝对定位的div 画。
             （若把渐变设在 input 上，会铺满 32px 高的输入框而非 3px 轨道） */}
@@ -346,6 +548,15 @@ function SliderField({
               style={{ width: `${pct}%` }}
             />
           </div>
+          {/* 默认值刻度：一眼看出当前偏离默认多远 */}
+          {defPct !== null && (
+            <span
+              title="默认值"
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 h-[11px] w-px -translate-y-1/2 bg-[var(--border-strong)]"
+              style={{ left: `${defPct}%` }}
+            />
+          )}
           <input
             type="range"
             min={min}
@@ -380,19 +591,21 @@ function ToggleRow({
   checked,
   onChange,
   danger,
+  badge,
 }: {
   label: string
-  hint: string
+  hint: ReactNode
   checked: boolean
   onChange: (v: boolean) => void
   danger?: boolean
+  badge?: ReactNode
 }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11.5px] font-medium text-ink-dim">{label}</span>
-          <Tooltip content={hint}>
+          <Tooltip content={hint} wide>
             <button
               type="button"
               aria-label={`${label} 说明`}
@@ -407,6 +620,7 @@ function ToggleRow({
               ?
             </button>
           </Tooltip>
+          {badge}
         </div>
       </div>
       <button
@@ -416,7 +630,7 @@ function ToggleRow({
         aria-label={label}
         onClick={() => onChange(!checked)}
         className={clsx(
-          'relative h-[18px] w-[32px] shrink-0 rounded-full',
+          'relative mt-[2px] h-[18px] w-[32px] shrink-0 rounded-full',
           'transition-colors duration-200 ease-out',
           'active:scale-[0.96]',
           checked
