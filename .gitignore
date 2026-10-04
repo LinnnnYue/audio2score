@@ -18,3 +18,9 @@ __pycache__/
 .idea/
 third_party/
 _probe*.py
+src-tauri/target/
+src-tauri/gen/
+prototype/_shot_*.png
+prototype/_diag.js
+prototype/_runtime_test.js
+prototype/_shots.js

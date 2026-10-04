@@ -612,6 +612,8 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 /* 刻度线：机架分区的视觉语言 */
 .ck-ticks { height: 7px; flex: 0 0 auto; background-image: repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 8px); opacity: .8; }
 .ck-main { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 18px 20px; min-width: 0; }
+/* 传输段与结果段占据底部余量，避免右栏在运行中出现大片空地 */
+.ck-main > [data-stages] { margin-top: auto; }
 .ck-lb { display: flex; align-items: center; gap: 8px; }
 .ck-lb__t { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink3); white-space: nowrap; }
 .ck-lb__r { flex: 1 1 auto; height: 1px; background-image: repeating-linear-gradient(90deg, var(--line) 0 3px, transparent 3px 7px); }
@@ -652,6 +654,14 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
 .ck-scope { position: relative; height: 46px; border-radius: 3px; background: #100E0C; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
 .ck-scope canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .ck-scope__g { position: absolute; inset: 0; background-image: linear-gradient(rgba(214,180,120,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(214,180,120,.07) 1px, transparent 1px); background-size: 100% 11.5px, 15.3px 100%; pointer-events: none; }
+
+/* 会话读出：填满输入通道下半部，等宽数字 + 刻度线，不用卡片 */
+.ck-sess { margin-top: auto; display: flex; flex-direction: column; gap: 0; padding-top: 2px; }
+.ck-sess__r { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 0 6px; border-bottom: 1px solid var(--line); }
+.ck-sess__k { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--ink3); white-space: nowrap; }
+.ck-sess__v { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-sess__v.is-idle { color: var(--ink3); }
+.ck-sess__v.is-hot { color: var(--pri); }
 
 /* 模式：四联旋钮式选择（分段 detent） */
 .ck-modes { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
@@ -1194,6 +1204,14 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
             <div class="ck-scope__g"></div>
             <canvas data-scope width="440" height="92"></canvas>
           </div>
+          <div class="ck-sess">
+            <div class="ck-lb"><span class="ck-lb__t">Session</span><span class="ck-lb__r"></span><span class="ck-lb__n">INFO</span></div>
+            <div class="ck-sess__r"><span class="ck-sess__k">Source</span><span class="ck-sess__v is-idle" data-sess="src">NO INPUT</span></div>
+            <div class="ck-sess__r"><span class="ck-sess__k">Sample rate</span><span class="ck-sess__v is-idle" data-sess="rate">—</span></div>
+            <div class="ck-sess__r"><span class="ck-sess__k">Channels</span><span class="ck-sess__v is-idle" data-sess="ch">—</span></div>
+            <div class="ck-sess__r"><span class="ck-sess__k">Engine</span><span class="ck-sess__v" data-sess="engine">IDLE v0.9.4</span></div>
+            <div class="ck-sess__r"><span class="ck-sess__k">Output dir</span><span class="ck-sess__v is-idle" data-sess="dir">~/Music/Songless</span></div>
+          </div>
         </div>
 
         <!-- 右：主机架 -->
@@ -1718,6 +1736,21 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
       var st = $(sk, '[data-start]');
       if (st) st.disabled = !f;
     });
+    // Cellar 会话读出：跟随真实状态
+    var S = {
+      src: f ? f.name : 'NO INPUT',
+      rate: f ? f.rate : '—',
+      ch: f ? '2 (stereo)' : '—',
+      engine: state.running ? 'RUNNING v0.9.4' : (state.done ? 'WRITING MIDI' : 'IDLE v0.9.4')
+    };
+    document.querySelectorAll('[data-sess]').forEach(function (n) {
+      var k = n.getAttribute('data-sess');
+      if (!(k in S)) return;
+      n.textContent = S[k];
+      var hot = (k === 'engine' && state.running) || (k === 'src' && !!f);
+      n.classList.toggle('is-idle', !hot && k !== 'dir');
+      n.classList.toggle('is-hot', hot);
+    });
     if (f && !state.done) paintStage('idle');
     paintRes();
   }
@@ -1754,7 +1787,7 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
         tag.classList.toggle('is-done', phase === 'done');
         if (tt) tt.textContent = phase === 'run' ? 'RUNNING · ' + STAGES[state.stage].t : (phase === 'done' ? 'DONE · 已导出' : '待机 IDLE');
       }
-      if (isCellar) paintVU(phase);
+      if (isCellar) { paintVU(phase); paintSess(); }
       var navs = sk.querySelectorAll('[data-nav]');
       if (navs.length) {
         navs.forEach(function (n, i) {
@@ -1782,6 +1815,15 @@ body.skinning *, body.skinning *::before, body.skinning *::after {
     });
   }
   var paintRes = paintResult;
+
+  /* Cellar 会话读出（供 paintStage 在运行中刷新） */
+  function paintSess() {
+    var eng = document.querySelector('[data-sess="engine"]');
+    if (!eng) return;
+    eng.textContent = state.running ? ('RUNNING · ' + STAGES[state.stage].t) : (state.done ? 'WRITING MIDI' : 'IDLE v0.9.4');
+    eng.classList.toggle('is-hot', state.running);
+    eng.classList.toggle('is-idle', false);
+  }
 
   /* =========================== 运行流程 =========================== */
   var timers = [];
