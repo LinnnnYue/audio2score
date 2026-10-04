@@ -41,30 +41,73 @@ TIER_BASIC = "basic"
 TIER_FULL = "full"
 TIER_MCP = "mcp"
 
+# ── 基础依赖（三档共用）──
+BASE_PACKAGES = [
+    "librosa>=0.10", "numpy>=1.24", "scipy>=1.10",
+    "pretty_midi>=0.2.10", "soundfile>=0.12", "av",
+]
+
+# ── Demucs（音源分离）──
+# ⚠️ 踩坑实录（P0，最伤小白的一类）：初版 TIER_FULL 的 packages 是**空列表**，
+# 只装了 torch，**漏了 demucs**。后果：用户选「完整（推荐）」、描述写着
+# 「可分离人声/伴奏」、下载 5.1GB 等了 20 分钟，装完发现分离功能仍然不可用
+# （走 HPSS 降级，质量差）。而 demucs 本体只有 792KB ——
+# **装了 99.98% 却漏了最后的 0.02%**。
+# 这类「承诺了但没兑现」比功能缺失更伤用户：他付出成本后才被发现。
+DEMUCS_PACKAGES = ["demucs"]
+
 TIERS: dict[str, dict] = {
     TIER_BASIC: {
-        "label": "基础（1-2 分钟，约 200MB）",
-        "desc": "支持基本扒谱与全部音频格式。不含人声/伴奏分离。",
-        "packages": [
-            "librosa>=0.10", "numpy>=1.24", "scipy>=1.10",
-            "pretty_midi>=0.2.10", "soundfile>=0.12", "av",
-        ],
+        "label": "基础 · 约 200MB · 1-2 分钟",
+        "desc": "基本扒谱 + 全部音频格式。不含人声/伴奏分离。",
+        # 能给小白看懂的「能做/不能做」
+        "can": ["基本扒谱（单音轨/多音轨）", "导入已分离音频直接扒谱", "mp3/m4a 等全格式读取"],
+        "cannot": ["分离人声与伴奏"],
+        "disk_mb": 1200,
+        "packages": list(BASE_PACKAGES),
+        "torch": False,
     },
     TIER_FULL: {
-        "label": "完整（8-20 分钟，约 5.1GB）",
-        "desc": "额外含 GPU 版 PyTorch 与 Demucs，可分离人声/伴奏。推荐。",
-        "packages": [],  # torch 需特殊 index，单独处理
+        "label": "完整 · 约 5.2GB · 10-25 分钟",
+        "desc": "含 GPU 版 PyTorch 与 Demucs。推荐。",
+        "can": ["全自动双轨扒谱（人声+伴奏）", "只扒伴奏 / 只扒人声旋律", "基本扒谱、已分离直入", "全部音频格式"],
+        "cannot": [],
+        "disk_mb": 7500,
+        "packages": list(BASE_PACKAGES) + list(DEMUCS_PACKAGES),
         "torch": True,
     },
     TIER_MCP: {
-        "label": "完整 + MCP（8-20 分钟，约 5.1GB）",
-        "desc": "在完整基础上加装 MCP SDK，供 AI 助手调用扒谱。",
-        "packages": ["mcp>=2.0"],
+        "label": "完整 + MCP · 约 5.2GB · 10-25 分钟",
+        "desc": "在完整基础上加装 MCP，供 AI 助手调用扒谱。",
+        "can": ["完整档全部功能", "AI 助手（WorkBuddy/Claude Code 等）直接调用"],
+        "cannot": [],
+        "disk_mb": 7500,
+        "packages": list(BASE_PACKAGES) + list(DEMUCS_PACKAGES) + ["mcp>=2.0"],
         "torch": True,
     },
 }
 
-TORCH_INDEX = "https://download.pytorch.org/whl/cu124"
+# ── 镜像源 ──
+# 为什么必须做：PyTorch 的 CUDA wheel 约 2.5GB，从官方源（境外）下载在国内
+# 常年只有几十 KB/s，甚至直接超时 —— 这是「首启安装体验」的头号杀手，
+# 也是小白最容易在这里放弃的地方。
+# 实测（2026-10-04）：清华 PyPI 与阿里云 pytorch-wheels 均 200 可达，
+# 且阿里云含 `torch-2.6.0+cu124-cp313-cp313-win_amd64.whl`（与本机匹配）。
+MIRRORS: dict[str, dict] = {
+    "cn": {
+        "label": "国内镜像（推荐）",
+        "hint": "清华 PyPI + 阿里云 PyTorch，速度快很多",
+        "pypi": "https://pypi.tuna.tsinghua.edu.cn/simple",
+        "torch_index": "https://mirrors.aliyun.com/pytorch-wheels/cu124",
+    },
+    "official": {
+        "label": "官方源",
+        "hint": "境外源，国内可能很慢；镜像不可用时选它",
+        "pypi": None,
+        "torch_index": "https://download.pytorch.org/whl/cu124",
+    },
+}
+DEFAULT_MIRROR = "cn"
 
 # 进度回调：(阶段, 0~1, 说明文字)
 ProgressFn = "callable"
@@ -229,13 +272,33 @@ def getprocess_flags() -> int:
     return 0
 
 
-def _pip_install(py: str, args: list[str], progress, stage: str,
-                 base_pct: float, span: float, log: list[str]) -> None:
-    """跑一次 pip install，向上报进度。"""
-    if progress:
-        progress(stage, base_pct, f"安装中：{args[0]}…")
+# 网络类失败的识别关键词。用途：给出「换镜像」这种**可操作**的建议，
+# 而不是干巴巴一句「安装失败」——小白看到后者只能放弃。
+_NET_HINTS = ("timeout", "timed out", "connection", "ssl", "temporary failure",
+              "read timed out", "urlopen", "proxy", "failed to establish",
+              "could not find a version", "no matching distribution")
 
-    cmd = [py, "-m", "pip", "install", "--progress-bar", "on", *args]
+
+def _pip_install(py: str, args: list[str], progress, stage: str,
+                 base_pct: float, span: float, log: list[str],
+                 pypi: str | None = None, label: str | None = None) -> None:
+    """
+    跑一次 pip install，向上报进度。
+
+    `pypi` 为 PyPI 镜像地址（None = 官方源）。
+    注意：args 里若已含 `--index-url`（torch 专用源），则忽略 pypi，
+    否则两个 index 参数会打架。
+    """
+    shown = label or args[0]
+    if progress:
+        progress(stage, base_pct, f"正在下载安装：{shown}…")
+
+    cmd = [py, "-m", "pip", "install", "--progress-bar", "on"]
+    has_index = any(a == "--index-url" for a in args)
+    if pypi and not has_index:
+        cmd += ["-i", pypi]
+    cmd += args
+
     r = subprocess.run(
         cmd, capture_output=True, text=True, timeout=3600,
         creationflags=getprocess_flags(),
@@ -244,17 +307,61 @@ def _pip_install(py: str, args: list[str], progress, stage: str,
     log.append(f"$ pip install {' '.join(args[:3])}…\n{tail.strip()[:400]}")
 
     if r.returncode != 0:
+        low = tail.lower()
+        if any(h in low for h in _NET_HINTS):
+            raise RuntimeError(
+                f"下载 {shown} 时网络中断或超时。\n\n"
+                f"可以试试：\n"
+                f"  1. 换一个源重试（默认已用国内镜像，可在选项里切官方源）\n"
+                f"  2. 检查网络或代理设置\n"
+                f"  3. 改用「基础」档（约 200MB，无需下载 PyTorch）\n\n"
+                f"技术详情：\n{tail.strip()[-400:]}"
+            )
+        if "no space left" in low or "disk" in low:
+            raise RuntimeError(
+                f"磁盘空间不足，安装 {shown} 时中断。\n\n"
+                f"请清理磁盘后重试。完整档需要约 5.2GB。\n\n"
+                f"技术详情：\n{tail.strip()[-400:]}"
+            )
         raise RuntimeError(
-            f"安装 {args[0]} 失败。\n\n"
-            f"常见原因：网络不通，或磁盘空间不足。\n"
-            f"详细信息：\n{tail.strip()[-500:]}"
+            f"安装 {shown} 失败。\n\n技术详情：\n{tail.strip()[-400:]}"
         )
     if progress:
-        progress(stage, base_pct + span, f"{args[0]} 完成")
+        progress(stage, base_pct + span, f"{shown} 已装好")
+
+
+def check_disk_space(target: Path, need_mb: int) -> tuple[bool, str]:
+    """
+    安装前检查目标盘剩余空间。
+
+    为什么要在**下载前**检查：完整档要下 5.2GB，如果下到一半空间不足，
+    pip 会留下半装状态，用户重试还得再下一次 —— 对小白是不可恢复的挫败。
+    提前拦住，代价是 0，收益是省掉一次 20 分钟的浪费。
+    """
+    try:
+        import shutil as _sh
+
+        # 必须 resolve：相对路径的 Path.anchor 是空串，会导致提示里盘符缺失
+        probe = target.resolve()
+        while not probe.exists() and probe.parent != probe:
+            probe = probe.parent
+        usage = _sh.disk_usage(str(probe))
+        free_mb = usage.free / (1024 * 1024)
+        where = probe.anchor or str(probe)
+        if free_mb < need_mb:
+            return False, (
+                f"磁盘空间不足。\n\n"
+                f"  需要：约 {need_mb / 1024:.1f} GB\n"
+                f"  可用：{free_mb / 1024:.1f} GB（{where}）\n\n"
+                f"请清理磁盘后重试，或改用「基础」档（约 200MB）。"
+            )
+        return True, f"磁盘可用 {free_mb / 1024:.1f} GB / 需要约 {need_mb / 1024:.1f} GB"
+    except Exception:  # noqa: BLE001 — 检查失败不阻断安装
+        return True, ""
 
 
 def install(tier: str = TIER_FULL, engine_dir: Path | None = None,
-            progress=None) -> InstallResult:
+            mirror: str = DEFAULT_MIRROR, progress=None) -> InstallResult:
     """
     执行安装。返回 InstallResult，**不抛异常**（便于 UI 展示失败原因）。
 
@@ -262,6 +369,7 @@ def install(tier: str = TIER_FULL, engine_dir: Path | None = None,
     ----------
     tier : TIER_BASIC / TIER_FULL / TIER_MCP
     engine_dir : 安装位置，默认 %LOCALAPPDATA%/bapu/engine
+    mirror : MIRRORS 的键（"cn" 国内镜像 / "official" 官方源）
     progress : 回调 (stage, 0~1, 说明)
     """
     t0 = time.time()
@@ -273,31 +381,47 @@ def install(tier: str = TIER_FULL, engine_dir: Path | None = None,
             False, str(engine_dir), "", tier, 0.0,
             message=f"未知的安装档位：{tier}", log=log,
         )
+    if mirror not in MIRRORS:
+        mirror = DEFAULT_MIRROR
 
     spec = TIERS[tier]
+    pypi = MIRRORS[mirror]["pypi"]
+    torch_index = MIRRORS[mirror]["torch_index"]
+
     try:
+        # ── 磁盘预检（在下载任何东西之前）──
+        need_mb = spec.get("disk_mb", 1200)
+        ok, disk_msg = check_disk_space(engine_dir, need_mb)
+        if not ok:
+            return InstallResult(
+                False, str(engine_dir), "", tier, time.time() - t0,
+                message=disk_msg, log=log,
+            )
+        if disk_msg:
+            log.append(f"[磁盘预检] {disk_msg}")
+
         py = create_venv(engine_dir, progress)
 
-        # ── torch 必须单独装且指定 cu124 源 ──
+        # ── torch 必须单独装且指定 CUDA 源 ──
         # 踩坑实录（部署第一大坑）：不指定 --index-url，pip 会装 CPU 版
-        # torch（约 2.5GB），分离人声会慢 20 倍，用户会以为程序坏了。
+        # torch，分离人声会慢约 20 倍，用户会以为程序坏了。
+        # 源码走 MIRRORS，默认国内镜像（官方源在国内常年几十 KB/s）。
         if spec.get("torch"):
             _pip_install(
                 py,
-                ["torch", "torchaudio", "--index-url", TORCH_INDEX],
+                ["torch", "torchaudio", "--index-url", torch_index],
                 progress, "torch", 0.10, 0.55, log,
+                label="PyTorch（GPU 版，约 2.5GB）",
             )
 
-        # ── 其余包 ──
+        # ── 其余包（含 demucs）──
         pkgs = list(spec.get("packages", []))
-        # basic 档也要装 librosa 等基础包
-        if not pkgs or spec.get("torch"):
-            pkgs = TIERS[TIER_BASIC]["packages"] + pkgs
-
         if pkgs:
             _pip_install(
                 py, pkgs, progress, "deps",
-                0.65 if spec.get("torch") else 0.15, 0.3, log,
+                0.65 if spec.get("torch") else 0.15, 0.30, log,
+                pypi=pypi,
+                label="扒谱依赖与 Demucs" if spec.get("torch") else "扒谱基础依赖",
             )
 
         if progress:
@@ -310,20 +434,33 @@ def install(tier: str = TIER_FULL, engine_dir: Path | None = None,
                 message=f"安装后自检未通过：{check.get('reason')}", log=log,
             )
 
+        # ── 承诺验证：档位说能做到的，必须真的做到 ──
+        # 踩坑实录：TIER_FULL 曾漏装 demucs，用户下完 5.2GB 才发现分离不能用。
+        # 「描述说支持」不等于「装完真能用」，必须实测 import 判定。
+        if spec.get("torch") and not check.get("demucs"):
+            return InstallResult(
+                False, str(engine_dir), py, tier, time.time() - t0,
+                message=(
+                    "安装完成，但人声/伴奏分离所需的 Demucs 不可用。\n\n"
+                    "请重试一次；若反复失败请改用「基础」档并反馈问题。"
+                ),
+                log=log,
+            )
+
         if progress:
             progress("verify", 1.0, "安装完成")
 
-        summary = f"基础依赖 ✓"
+        parts = ["基础功能 ✓"]
         if check.get("demucs"):
-            summary += f" · Demucs ✓（CUDA {'✓' if check.get('cuda') else '✗'}）"
+            parts.append(f"人声分离 ✓（{'GPU 加速' if check.get('cuda') else 'CPU 模式'}）")
         else:
-            summary += " · Demucs ✗（人声分离将降级）"
+            parts.append("人声分离 ✗（本档不含）")
         if check.get("mcp"):
-            summary += " · MCP ✓"
+            parts.append("MCP ✓")
 
         return InstallResult(
             True, str(engine_dir), py, tier, time.time() - t0,
-            message=summary, log=log,
+            message=" · ".join(parts), log=log,
         )
 
     except Exception as e:  # noqa: BLE001
@@ -347,10 +484,29 @@ def install_status(engine_dir: Path | None = None) -> dict:
         "cuda": check.get("cuda", False),
         "torchVersion": check.get("torchVer", ""),
         "mcp": check.get("mcp", False),
+        # 档位详情：带上「能做/不能做」与磁盘需求。
+        # 小白判断不了「200MB vs 5.2GB」哪个该选，得告诉他**选完能干什么**。
         "tiers": [
-            {"id": k, "label": v["label"], "desc": v["desc"]}
+            {
+                "id": k,
+                "label": v["label"],
+                "desc": v["desc"],
+                "can": v.get("can", []),
+                "cannot": v.get("cannot", []),
+                "diskMB": v.get("disk_mb", 0),
+            }
             for k, v in TIERS.items()
         ],
+        "mirrors": [
+            {"id": k, "label": v["label"], "hint": v["hint"]}
+            for k, v in MIRRORS.items()
+        ],
+        "defaultMirror": DEFAULT_MIRROR,
+        # 「还缺什么能力」——用于给已装用户提供增量升级入口，
+        # 而不是让他整个重装一遍
+        "missing": (
+            ["demucs"] if (check["ready"] and not check.get("demucs")) else []
+        ),
     }
 
 
@@ -360,8 +516,31 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="扒谱助手 · 引擎安装器")
     ap.add_argument("--tier", default=TIER_FULL, choices=list(TIERS))
     ap.add_argument("--dir", help="安装位置（默认 %%LOCALAPPDATA%%/bapu/engine）")
+    ap.add_argument(
+        "--mirror", default=DEFAULT_MIRROR, choices=list(MIRRORS),
+        help="下载源（cn=国内镜像 / official=官方源）",
+    )
     ap.add_argument("--status", action="store_true", help="只查状态")
+    ap.add_argument("--list-tiers", action="store_true", help="列出档位与能力")
     args = ap.parse_args()
+
+    if args.list_tiers:
+        for k, v in TIERS.items():
+            print(f"\n【{k}】{v['label']}")
+            print(f"  {v['desc']}")
+            print(f"  磁盘需求：约 {v.get('disk_mb', 0) / 1024:.1f} GB")
+            print("  能做：")
+            for c in v.get("can", []):
+                print(f"    ✓ {c}")
+            if v.get("cannot"):
+                print("  不能做：")
+                for c in v["cannot"]:
+                    print(f"    ✗ {c}")
+        print("\n镜像：")
+        for k, v in MIRRORS.items():
+            mark = "（默认）" if k == DEFAULT_MIRROR else ""
+            print(f"  {k:9s} {v['label']}{mark} — {v['hint']}")
+        raise SystemExit(0)
 
     if args.status:
         print(json.dumps(install_status(Path(args.dir) if args.dir else None),
@@ -372,15 +551,26 @@ if __name__ == "__main__":
     last = [0.0]
 
     def _p(stage: str, pct: float, msg: str) -> None:
-        if pct - last[0] >= 0.01 or pct >= 1.0:
-            last[0] = pct
-            bar = "█" * int(pct * 28) + "░" * (28 - int(pct * 28))
-            sys.stdout.write(f"\r  [{bar}] {pct * 100:5.1f}%  {msg[:46]:<46}")
-            sys.stdout.flush()
+        # 不再按 1% 粒度节流：pip 的下载阶段可能长时间停在同一个百分比，
+        # 用户会以为卡死。改为「消息变化就刷新，或百分比跳变≥1%」才刷。
+        last[0] = pct
+        bar = "█" * int(pct * 28) + "░" * (28 - int(pct * 28))
+        sys.stdout.write(f"\r  [{bar}] {pct * 100:5.1f}%  {msg[:46]:<46}")
+        sys.stdout.flush()
+
+    spec = TIERS.get(args.tier, {})
+    print(f"档位：{spec.get('label', args.tier)}")
+    print(f"镜像：{MIRRORS[args.mirror]['label']}")
+    print(f"位置：{Path(args.dir) if args.dir else default_engine_dir()}")
+    need = spec.get("disk_mb", 0)
+    if need:
+        print(f"磁盘：需要约 {need / 1024:.1f} GB")
+    print()
 
     res = install(
         args.tier,
         Path(args.dir) if args.dir else None,
+        mirror=args.mirror,
         progress=_p,
     )
     sys.stdout.write("\r" + " " * 84 + "\r")

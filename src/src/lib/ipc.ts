@@ -282,6 +282,18 @@ export interface InstallTierInfo {
   id: InstallTier
   label: string
   desc: string
+  /** 选这个档位**能做什么**——小白判断不了 200MB vs 5.2GB，得告诉他能力 */
+  can: string[]
+  /** 不能做什么（明确排除项，避免装完才发现缺功能） */
+  cannot: string[]
+  /** 磁盘需求（MB），用于安装前提示 */
+  diskMB: number
+}
+
+export interface MirrorInfo {
+  id: string
+  label: string
+  hint: string
 }
 
 export interface EngineStatus {
@@ -295,6 +307,10 @@ export interface EngineStatus {
   torchVersion: string
   mcp: boolean
   tiers: InstallTierInfo[]
+  mirrors: MirrorInfo[]
+  defaultMirror: string
+  /** 已装但缺失的能力（如已装基础档则含 "demucs"），用于给增量升级入口 */
+  missing: string[]
 }
 
 export interface InstallProgressEvent {
@@ -314,16 +330,24 @@ export async function checkEngine(): Promise<EngineStatus> {
     return {
       engineDir: '', ready: true, reason: '', python: null,
       basic: true, demucs: true, cuda: false, torchVersion: '', mcp: false,
-      tiers: [],
+      tiers: [], mirrors: [], defaultMirror: 'cn', missing: [],
     }
   }
   return invoke<EngineStatus>('check_engine')
 }
 
-/** 启动引擎安装。进度经 install://progress 事件回传。 */
-export async function installEngine(tier: InstallTier): Promise<StartResult> {
+/**
+ * 启动引擎安装。进度经 install://progress 事件回传。
+ *
+ * `mirror` 默认国内镜像——PyTorch 的 CUDA wheel 约 2.5GB，
+ * 官方源（境外）在国内常年几十 KB/s，是首启安装的头号杀手。
+ */
+export async function installEngine(
+  tier: InstallTier,
+  mirror = 'cn',
+): Promise<StartResult> {
   if (!inTauri()) throw new Error('非桌面环境无法安装引擎')
-  return invoke<StartResult>('install_engine', { tier })
+  return invoke<StartResult>('install_engine', { tier, mirror })
 }
 
 export async function cancelInstall(taskId: string): Promise<void> {

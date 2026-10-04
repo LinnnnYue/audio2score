@@ -28,6 +28,7 @@ import {
   CircleDot,
   Cpu,
   Download,
+  Globe,
   Loader2,
   Package,
   ShieldCheck,
@@ -50,9 +51,16 @@ type Phase = 'checking' | 'ready' | 'choosing' | 'installing' | 'done' | 'failed
 
 interface Props {
   onReady: () => void
+  /**
+   * 进入意图。
+   * - `first-run`（默认）：引擎就绪即自动进主界面
+   * - `upgrade`：用户是来「加装缺失功能」的，就绪时**停在选择界面**，
+   *   否则会立刻被弹回主界面，根本来不及选。
+   */
+  intent?: 'first-run' | 'upgrade'
 }
 
-export function EngineSetup({ onReady }: Props) {
+export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
   const [phase, setPhase] = useState<Phase>('checking')
   const [status, setStatus] = useState<EngineStatus | null>(null)
   const [tier, setTier] = useState<InstallTier>('full')
@@ -61,6 +69,8 @@ export function EngineSetup({ onReady }: Props) {
   const [logs, setLogs] = useState<string[]>([])
   const [error, setError] = useState('')
   const [taskId, setTaskId] = useState('')
+  /** 下载源。默认国内镜像——官方源下 2.5GB 的 PyTorch 在国内常超时 */
+  const [mirror, setMirror] = useState('cn')
   const logRef = useRef<HTMLDivElement>(null)
 
   /* ── 首启检测 ── */
@@ -69,18 +79,20 @@ export function EngineSetup({ onReady }: Props) {
     try {
       const s = await checkEngine()
       setStatus(s)
-      if (s.ready) {
+      if (s.defaultMirror) setMirror(s.defaultMirror)
+      if (s.ready && intent === 'first-run') {
         setPhase('ready')
-        // 引擎已就绪，短暂展示后进入主界面
+        // 首次运行：引擎已就绪，短暂展示后进入主界面
         setTimeout(onReady, 650)
       } else {
+        // 未就绪，或用户主动来加装功能 → 都停在选择界面
         setPhase('choosing')
       }
     } catch (e) {
       setError(String(e))
       setPhase('failed')
     }
-  }, [onReady])
+  }, [onReady, intent])
 
   useEffect(() => {
     void probe()
@@ -119,43 +131,31 @@ export function EngineSetup({ onReady }: Props) {
     setLogs([])
     setError('')
     try {
-      const r = await installEngine(tier)
+      const r = await installEngine(tier, mirror)
       setTaskId(r.taskId)
       setMessage('正在准备…')
     } catch (e) {
       setError(String(e))
       setPhase('failed')
     }
-  }, [tier])
+  }, [tier, mirror])
 
   const abort = useCallback(async () => {
     if (taskId) await cancelInstall(taskId)
     void probe()
   }, [taskId, probe])
 
-  const tiers: Array<{
-    id: InstallTier
-    label: string
-    desc: string
-    tag?: string
-  }> = [
-    {
-      id: 'basic',
-      label: '基础',
-      desc: '约 200MB · 1-2 分钟。支持基本扒谱与全部音频格式，不含人声/伴奏分离。',
-    },
-    {
-      id: 'full',
-      label: '完整',
-      desc: '约 5.1GB · 8-20 分钟。含 GPU 版 PyTorch 与 Demucs，可分离人声与伴奏。',
-      tag: '推荐',
-    },
-    {
-      id: 'mcp',
-      label: '完整 + MCP',
-      desc: '约 5.1GB · 8-20 分钟。额外供 AI 助手（WorkBuddy / Claude Code 等）调用扒谱。',
-    },
-  ]
+  /**
+   * 档位数据全部来自后端 `install_status()`，**前端不硬编码文案**。
+   * 这样「能做/不能做」与「后端实际装什么」永远是同一份真源——
+   * 之前 TIER_FULL 漏装 demucs 却仍宣称支持分离，正是因为描述与实现
+   * 分处两地、无人对账。
+   */
+  const tiers = status?.tiers ?? []
+  const mirrors = status?.mirrors ?? []
+
+  /** 已装但缺能力时，给出「加装」提示而非让用户整个重装 */
+  const needsUpgrade = (status?.missing?.length ?? 0) > 0
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -260,23 +260,103 @@ export function EngineSetup({ onReady }: Props) {
                           <span className="text-[13.5px] font-medium text-[var(--text)]">
                             {t.label}
                           </span>
-                          {t.tag && (
+                          {t.id === 'full' && (
                             <span
                               className="rounded px-1.5 py-px text-[10px] font-medium"
                               style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
                             >
-                              {t.tag}
+                              推荐
                             </span>
                           )}
                         </span>
                         <span className="mt-1 block text-[12px] leading-relaxed text-[var(--text-dim)]">
                           {t.desc}
                         </span>
+                        {/* 能做 / 不能做。
+                            小白判断不了「200MB vs 5.2GB」该选哪个 ——
+                            告诉他**选完能干什么**才是可决策的信息。
+                            「不能做」必须显式列出，否则用户装完才发现缺功能。 */}
+                        <span className="mt-2 flex flex-col gap-1">
+                          {t.can.map((c) => (
+                            <span
+                              key={c}
+                              className="flex items-start gap-1.5 text-[11.5px] leading-snug text-[var(--text-dim)]"
+                            >
+                              <Check
+                                size={11}
+                                strokeWidth={3}
+                                className="mt-[3px] shrink-0 text-[var(--accent)]"
+                              />
+                              {c}
+                            </span>
+                          ))}
+                          {t.cannot.map((c) => (
+                            <span
+                              key={c}
+                              className="flex items-start gap-1.5 text-[11.5px] leading-snug text-[var(--text-faint)]"
+                            >
+                              <X size={11} strokeWidth={3} className="mt-[3px] shrink-0" />
+                              {c}
+                            </span>
+                          ))}
+                        </span>
                       </span>
                     </button>
                   )
                 })}
               </div>
+
+              {/* ── 下载源 ──
+                  PyTorch 的 CUDA 包约 2.5GB，官方源在国内常年几十 KB/s。
+                  这是首启安装最容易劝退的一步，所以把源选择放到明面上。 */}
+              {mirrors.length > 1 && (
+                <div className="mt-5">
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <Globe size={12} strokeWidth={2.2} className="text-[var(--text-faint)]" />
+                    <span className="text-[12px] font-medium text-[var(--text-dim)]">
+                      下载源
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {mirrors.map((m) => {
+                      const on = mirror === m.id
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setMirror(m.id)}
+                          aria-pressed={on}
+                          className="flex items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-[background-color,border-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.98]"
+                          style={{
+                            background: on ? 'var(--accent-soft)' : 'var(--surface)',
+                            borderColor: on ? 'var(--accent)' : 'var(--border)',
+                          }}
+                        >
+                          <span
+                            className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border"
+                            style={{
+                              borderColor: on ? 'var(--accent)' : 'var(--border-strong)',
+                              background: on ? 'var(--accent)' : 'transparent',
+                            }}
+                          >
+                            {on && (
+                              <Check size={9} strokeWidth={3.5} className="text-[var(--accent-contrast)]" />
+                            )}
+                          </span>
+                          <span className="flex-1">
+                            <span className="block text-[12.5px] text-[var(--text)]">
+                              {m.label}
+                            </span>
+                            <span className="block text-[11px] leading-snug text-[var(--text-faint)]">
+                              {m.hint}
+                            </span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -285,7 +365,7 @@ export function EngineSetup({ onReady }: Props) {
                 style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
               >
                 <Download size={15} strokeWidth={2.2} />
-                开始安装
+                {needsUpgrade ? '加装缺失功能' : '开始安装'}
               </button>
 
               <p className="mt-4 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-[var(--text-faint)]">
@@ -304,7 +384,9 @@ export function EngineSetup({ onReady }: Props) {
                   正在安装引擎
                 </h1>
                 <p className="mt-1.5 text-[13px] text-[var(--text-dim)]">
-                  完整档需下载约 3GB 的 PyTorch，请保持网络畅通。
+                  {tier === 'basic'
+                    ? '基础档约 200MB，通常 1-2 分钟。'
+                    : '完整档需下载约 2.5GB 的 PyTorch，请保持网络畅通（已选国内镜像会快很多）。'}
                 </p>
               </header>
 

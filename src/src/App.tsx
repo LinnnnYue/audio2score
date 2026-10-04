@@ -9,7 +9,7 @@
  */
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { AudioLines, Music4, Waves } from 'lucide-react'
+import { AudioLines, Music4, Package, Waves } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { BasicTranscribe } from './pages/BasicTranscribe'
@@ -17,7 +17,7 @@ import { SongTranscribe } from './pages/SongTranscribe'
 import { EngineSetup } from './components/EngineSetup'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { WindowControls } from './components/WindowControls'
-import { checkEngine } from './lib/ipc'
+import { checkEngine, type EngineStatus } from './lib/ipc'
 import { applyTheme, loadTheme, persistTheme, type ThemeId } from './theme/themes'
 
 type Tab = 'song' | 'basic'
@@ -41,12 +41,18 @@ export default function App() {
    * 开发态自带 venv 时 checkEngine 立刻返回 ready，不打扰。
    */
   const [engineReady, setEngineReady] = useState<boolean | null>(null)
+  /** 完整状态。用于判断「引擎能用但缺某个能力」（如已装基础档、缺人声分离）。 */
+  const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
+  /** 进入引导页的意图：首次运行 or 主动加装功能 */
+  const [setupIntent, setSetupIntent] = useState<'first-run' | 'upgrade'>('first-run')
 
   useEffect(() => {
     let alive = true
     void checkEngine()
       .then((s) => {
-        if (alive) setEngineReady(s.ready)
+        if (!alive) return
+        setEngineStatus(s)
+        setEngineReady(s.ready)
       })
       .catch(() => {
         // ⚠️ 探测失败**不能**等同于「已就绪」。
@@ -76,7 +82,15 @@ export default function App() {
    * engineReady 为 null 表示还在探测中，此时不渲染任何分支，避免闪烁。
    */
   if (engineReady === false) {
-    return <EngineSetup onReady={(): void => { setEngineReady(true) }} />
+    return (
+      <EngineSetup
+        intent={setupIntent}
+        onReady={(): void => {
+          setSetupIntent('first-run')
+          setEngineReady(true)
+        }}
+      />
+    )
   }
 
   /* chrome 空白处可拖动窗口；交互元素上不触发 */
@@ -150,6 +164,33 @@ export default function App() {
           <WindowControls />
         </div>
       </header>
+
+      {/* ================= 能力缺失提示 =================
+          已装「基础」档的用户能进主界面，但缺人声分离。
+          若不给入口，他就只能看到一个「能力受限」的横幅而无从改善 —— 
+          这正是引导页只在首次运行出现所留下的死角。 */}
+      {engineReady === true && engineStatus?.missing?.includes('demucs') && (
+        <div
+          className="flex shrink-0 items-center gap-2.5 px-4 py-2"
+          style={{ background: 'var(--accent-soft)' }}
+        >
+          <Package size={13} strokeWidth={2.2} className="shrink-0 text-[var(--accent)]" />
+          <span className="flex-1 text-[12px] leading-snug text-[var(--text-dim)]">
+            当前缺少「人声与伴奏分离」，无法使用歌曲扒谱的双轨模式。
+          </span>
+          <button
+            type="button"
+            onClick={(): void => {
+              setSetupIntent('upgrade')
+              setEngineReady(false)
+            }}
+            className="shrink-0 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-[transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+            style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
+          >
+            加装
+          </button>
+        </div>
+      )}
 
       {/* ================= 内容区 ================= */}
       {/* 两个页面都常驻挂载，用 hidden 切换：切页不丢状态，也不重复挂引擎订阅 */}

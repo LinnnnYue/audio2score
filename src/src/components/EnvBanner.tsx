@@ -30,7 +30,23 @@ export function EnvBanner({ env, needsSeparation }: Props) {
   if (needsSeparation && !env.cuda) {
     blocking.push('未检测到 CUDA，分离将在 CPU 上运行，3 分钟歌曲可能需要数分钟。')
   }
-  const notes = [...blocking, ...env.notes.filter((n) => !blocking.includes(n))]
+
+  /**
+   * 去重：后端 capabilities().notes 里也有针对 demucs / cuda 的说明，
+   * 直接拼接会让同一件事说两遍（曾出现「未安装 Demucs…未检测到 CUDA…
+   * 未安装 Demucs…未检测到 CUDA…」的重复横幅）。
+   *
+   * 为什么不是「只留一处真源」：后端的 notes 还要供 MCP 的
+   * environment_status 工具使用（那里没有「当前模式是否需要分离」的上下文），
+   * 故两端各自保留，由这里做**面向当前上下文的消重**。
+   * 前端比后端更懂「这次操作会不会受影响」，所以本轮上下文相关文案以前端为准。
+   */
+  const backendNotes = env.notes.filter((n) => {
+    if (needsSeparation && /Demucs/i.test(n)) return false
+    if (needsSeparation && /CUDA/i.test(n)) return false
+    return !blocking.includes(n)
+  })
+  const notes = [...blocking, ...backendNotes]
 
   // 全部正常：不显示
   const isFullHealth = env.demucs && env.cuda && env.ffmpeg

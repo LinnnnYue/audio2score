@@ -784,6 +784,7 @@ pub async fn install_engine(
     app: AppHandle,
     state: State<'_, EngineState>,
     tier: Option<String>,
+    mirror: Option<String>,
 ) -> Result<StartResult, String> {
     let dir = engine_dir(&app)?;
     let script = dir.join("bootstrap.py");
@@ -792,6 +793,9 @@ pub async fn install_engine(
     }
 
     let tier = tier.unwrap_or_else(|| "full".into());
+    // 镜像透传给 bootstrap.py。默认国内镜像：PyTorch CUDA wheel 约 2.5GB，
+    // 官方源在国内常年几十 KB/s，小白最容易在这一步放弃。
+    let mirror = mirror.unwrap_or_else(|| "cn".into());
     let task_id = uuid::Uuid::new_v4().to_string();
 
     let base = base_python().ok_or("找不到可用的 Python 3.9+")?;
@@ -799,6 +803,8 @@ pub async fn install_engine(
         .arg(&script)
         .arg("--tier")
         .arg(&tier)
+        .arg("--mirror")
+        .arg(&mirror)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
