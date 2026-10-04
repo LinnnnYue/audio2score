@@ -510,8 +510,30 @@ def install_status(engine_dir: Path | None = None) -> dict:
     }
 
 
+def _force_utf8_stdio() -> None:
+    """
+    强制 stdout/stderr 使用 UTF-8。
+
+    ## 为什么必须显式设置
+    当 stdout 被重定向到管道（Tauri 用 Stdio::piped() 捕获就是这种情况）时，
+    Python 会用**系统 locale 编码**而非 UTF-8 —— 中文 Windows 上是 cp936(GBK)。
+    于是中文 JSON 被编成 GBK 字节，Rust 侧按 UTF-8 解码得到一堆替换字符，
+    界面上就是「◆◆◆◆」乱码。
+
+    **绝不能依赖环境**：双击启动的应用不继承开发者的 shell 环境，
+    所以必须在本进程内显式声明。errors="replace" 兜底，避免编码异常直接崩进程。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001 — 老版本/非标准流：忽略即可
+            pass
+
+
 if __name__ == "__main__":
     import argparse
+
+    _force_utf8_stdio()
 
     ap = argparse.ArgumentParser(description="扒谱助手 · 引擎安装器")
     ap.add_argument("--tier", default=TIER_FULL, choices=list(TIERS))

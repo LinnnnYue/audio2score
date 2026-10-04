@@ -289,7 +289,23 @@ HANDLERS = {
 }
 
 
+def _force_utf8_stdio() -> None:
+    """
+    强制 stdout/stderr 使用 UTF-8。
+
+    见 bootstrap.py 同名函数的说明：stdout 为管道时 Python 会退回系统
+    locale 编码（中文 Windows = GBK），导致中文 JSON 到 Rust 侧变乱码。
+    必须在本进程内显式声明，不能依赖环境变量。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def main() -> None:
+    _force_utf8_stdio()
     _redir_lib_stdout()
 
     # Windows 下避免弹黑框（若被打包成 GUI 程序）

@@ -356,6 +356,12 @@ fn run_once_with(
 
     let mut child = hide_child(Command::new(&py))
         .arg(&bridge)
+    // ── 强制子进程用 UTF-8 ──
+    // stdout 被管道捕获时，Python 会用系统 locale 编码（中文 Windows = GBK），
+    // 中文 JSON 到这边按 UTF-8 解码就成了「◆◆◆◆」乱码。
+    // Python 侧已 reconfigure 兜底，这里是双保险 —— 不依赖任何环境前提。
+    .env("PYTHONIOENCODING", "utf-8")
+    .env("PYTHONUTF8", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -759,6 +765,8 @@ pub async fn check_engine(app: AppHandle) -> Result<Value, String> {
     let out = hide_child(std::process::Command::new(&base))
         .arg(&script)
         .arg("--status")
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
         .output()
         .map_err(|e| format!("执行安装器失败：{}", e))?;
 
@@ -805,6 +813,13 @@ pub async fn install_engine(
         .arg(&tier)
         .arg("--mirror")
         .arg(&mirror)
+    // ── 强制子进程用 UTF-8 ──
+    // stdout 被管道捕获时，Python 会用系统 locale 编码（中文 Windows = GBK），
+    // 中文 JSON 到这边按 UTF-8 解码就成了「◆◆◆◆」乱码。
+    // Python 侧已 reconfigure 兜底，这里是双保险 —— 不依赖任何环境前提。
+    .env("PYTHONIOENCODING", "utf-8")
+    .env("PYTHONUTF8", "1")
+
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
