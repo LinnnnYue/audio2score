@@ -25,7 +25,9 @@ import {
   BookOpen,
   Check,
   Cpu,
+  ExternalLink,
   FolderOpen,
+  Globe,
   HardDrive,
   Loader2,
   Package,
@@ -45,6 +47,7 @@ import {
   revealInFolder,
   type EngineStatus,
 } from '../lib/ipc'
+import { DOCS_URL, GITHUB_URL, openExternal, SITE_URL } from '../lib/links'
 
 type MovePhase = 'idle' | 'confirm' | 'moving' | 'done' | 'failed'
 
@@ -84,6 +87,8 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
   const [outcome, setOutcome] = useState('')
   /** 「在资源管理器中打开」这类轻动作的失败提示，不占 error 位 */
   const [note, setNote] = useState('')
+  /** 「帮助与关于」唤起浏览器失败时的提示（附链接原文，便于手动复制） */
+  const [helpNote, setHelpNote] = useState('')
   const logRef = useRef<HTMLDivElement>(null)
 
   const ready = status?.ready ?? false
@@ -175,6 +180,22 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
       setNote(String(e))
     }
   }, [engineDir])
+
+  /**
+   * 用系统默认浏览器打开外部链接。
+   *
+   * ⚠️ 失败必须给出路 —— 这类「唤起浏览器」失败在用户看来就是
+   * 「按钮点了没反应」。所以把链接原文摆出来，让他能手动复制粘贴。
+   * （界面不允许「无出路的终态」。）
+   */
+  const openLink = useCallback(async (url: string) => {
+    setHelpNote('')
+    try {
+      await openExternal(url)
+    } catch (e) {
+      setHelpNote(`没能唤起浏览器（${String(e)}）。可手动复制链接：${url}`)
+    }
+  }, [])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -540,6 +561,48 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
               查看新手指引
             </button>
           </div>
+        </Section>
+
+        {/* ═══════════════ 05 帮助与关于 ═══════════════ */}
+        <Section
+          index="05"
+          title="帮助与关于"
+          aside={<span className="text-[10.5px] text-ink-faint">用浏览器打开</span>}
+        >
+          <p className="text-[12.5px] leading-relaxed text-ink-dim">
+            说明文档把每个参数讲透了 ——「往左拖会怎样、往右拖会怎样、
+            什么时候才该动它」，与软件里每个旋钮旁边的提示同源。
+            官网首页有最新版本的下载入口。
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void openLink(DOCS_URL)}
+              className="btn btn-primary"
+            >
+              <BookOpen size={13} strokeWidth={2.1} />
+              说明文档
+              <ExternalLink size={11} strokeWidth={2.2} />
+            </button>
+            <button type="button" onClick={() => void openLink(SITE_URL)} className="btn">
+              <Globe size={13} strokeWidth={2.1} />
+              官网首页
+              <ExternalLink size={11} strokeWidth={2.2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void openLink(GITHUB_URL)}
+              className="btn btn-ghost"
+            >
+              源码仓库
+              <ExternalLink size={11} strokeWidth={2.2} />
+            </button>
+          </div>
+
+          {helpNote && (
+            <p className="mt-2.5 text-[11.5px] leading-relaxed break-all text-bad">{helpNote}</p>
+          )}
         </Section>
       </div>
     </div>

@@ -9,7 +9,7 @@
  */
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { AudioLines, Music4, Settings as SettingsIcon, Waves } from 'lucide-react'
+import { AudioLines, BookOpen, Music4, Settings as SettingsIcon, Waves } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { BasicTranscribe } from './pages/BasicTranscribe'
@@ -20,6 +20,7 @@ import { Onboarding } from './components/Onboarding'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { checkEngine, type EngineStatus } from './lib/ipc'
+import { DOCS_URL, openExternal } from './lib/links'
 import { hasSeenOnboarding } from './lib/onboarding-store'
 import { applyTheme, loadTheme, persistTheme, type ThemeId } from './theme/themes'
 
@@ -203,6 +204,25 @@ export default function App() {
   const closeGuide = useCallback(() => setGuideOpen(false), [])
 
   /**
+   * 「唤起系统浏览器」失败的落点。
+   *
+   * 应用是无边框窗口，`window.open` 弹出的新窗口没有系统标题栏、用户关不掉，
+   * 所以外链一律交给系统默认浏览器（见 `lib/links.ts`）。
+   * 但 opener 插件也有被系统拒绝的可能（无默认浏览器 / 被安全软件拦截）。
+   *
+   * ⚠️ 不许静默失败 —— 界面上不允许「无出路的终态」：
+   * 失败时把链接原文摊在顶栏下方，用户可选中复制，亦可点「重试」。
+   */
+  const [linkFail, setLinkFail] = useState<string | null>(null)
+
+  /** 打开外链；失败则落到提示条上（出路：重试 / 手动复制链接） */
+  const openEx = useCallback((url: string) => {
+    void openExternal(url)
+      .then(() => setLinkFail(null))
+      .catch(() => setLinkFail(url))
+  }, [])
+
+  /**
    * 引擎未就绪 → 走首启安装向导；装完 onReady 切回主界面。
    * engineReady 为 null 表示还在探测中，此时不渲染任何分支，避免闪烁。
    */
@@ -294,6 +314,22 @@ export default function App() {
         {/* 主题切换 + 设置 + 窗口三键 */}
         <div data-no-drag className="flex items-center gap-2">
           <ThemeSwitcher value={theme} onChange={onTheme} />
+          {/* 说明文档直达（顺带可切到官网首页）。
+              必须交给系统默认浏览器：本窗口是无边框的，window.open 开出来的
+              新窗口没有系统标题栏，用户关不掉 —— 详见 lib/links.ts */}
+          <button
+            type="button"
+            onClick={() => openEx(DOCS_URL)}
+            aria-label="使用说明与官网"
+            title="使用说明与官网"
+            className={clsx(
+              'flex h-[26px] w-[26px] items-center justify-center rounded-[var(--r-sm)]',
+              'text-ink-faint',
+              'transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.94]',
+            )}
+          >
+            <BookOpen size={14} strokeWidth={1.9} />
+          </button>
           <button
             type="button"
             onClick={() => setView((v) => (v === 'settings' ? 'work' : 'settings'))}
@@ -312,6 +348,36 @@ export default function App() {
           <WindowControls />
         </div>
       </header>
+
+      {/*
+        外链打开失败时的出路。
+        默认浏览器缺失 / 被安全软件拦截时，opener 会抛错 —— 此时不能静默：
+        把链接原文摊开（`select-all` 便于一键复制），并给「重试 / 关闭」。
+      */}
+      {linkFail && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bg-elev px-4 py-1.5 text-[11.5px]">
+          <span className="shrink-0 text-ink-dim">没能唤起浏览器，请手动打开：</span>
+          <code className="min-w-0 flex-1 select-all truncate rounded-[var(--r-sm)] bg-bg px-1.5 py-0.5 text-[11px] text-ink">
+            {linkFail}
+          </code>
+          <button
+            type="button"
+            onClick={() => openEx(linkFail)}
+            className="shrink-0 rounded-[var(--r-sm)] px-2 py-0.5 font-medium text-accent transition-colors duration-150 ease-out [[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft"
+          >
+            重试
+          </button>
+          <button
+            type="button"
+            onClick={() => setLinkFail(null)}
+            aria-label="关闭提示"
+            title="关闭"
+            className="shrink-0 rounded-[var(--r-sm)] px-2 py-0.5 text-ink-faint transition-colors duration-150 ease-out [[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-bg"
+          >
+            关闭
+          </button>
+        </div>
+      )}
 
       {/* ================= 内容区 ================= */}
       {/*
