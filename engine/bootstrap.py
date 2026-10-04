@@ -124,16 +124,68 @@ class InstallResult:
     log: list[str] = field(default_factory=list)
 
 
+def location_file() -> Path:
+    """安装位置记录文件的路径（用户级，与安装位置无关）。"""
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / "bapu" / "location.json"
+
+
+def save_location(engine_dir: Path) -> None:
+    """
+    记录本次安装位置。
+
+    ## 为什么必须记录
+    用户可以把引擎装到任意盘（`--dir`），但宿主（Rust）需要知道去哪里找
+    那个 venv。若只认死的 `%LOCALAPPDATA%/bapu/engine`，
+    用户选了 D 盘也是白选 —— 装完了宿主仍然找不到，仍报「引擎未就绪」。
+    所以安装成功后把位置落盘，由宿主读取。
+    """
+    try:
+        lf = location_file()
+        lf.parent.mkdir(parents=True, exist_ok=True)
+        lf.write_text(
+            json.dumps({"engine_dir": str(engine_dir)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001 — 记录失败不应让安装本身失败
+        pass
+
+
+def load_location() -> Path | None:
+    """读取上次记录的安装位置。不存在或已失效则返回 None。"""
+    try:
+        lf = location_file()
+        if not lf.is_file():
+            return None
+        data = json.loads(lf.read_text(encoding="utf-8"))
+        p = Path(data["engine_dir"])
+        # 只认「目录里真有 venv 解释器」的位置，避免返回一个已被删除的路径
+        if (p / ".venv" / "Scripts" / "python.exe").is_file():
+            return p
+        if (p / ".venv" / "bin" / "python").is_file():
+            return p
+        return None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def default_engine_dir() -> Path:
     """
     默认安装位置：用户级，无需管理员权限。
 
-    **开发态短路**：若本文件旁已有 `.venv`（仓库开发者场景），
-    直接用它而不返回用户目录——否则开发时每次都要装一遍 5.1GB。
+    **优先级**：
+      1. 曾记录过的自定义安装位置（用户可能装在 D 盘）
+      2. 开发态短路：本文件旁已有 `.venv`（仓库开发者场景）
+      3. 默认：`%LOCALAPPDATA%/bapu/engine`
     """
+    recorded = load_location()
+    if recorded is not None:
+        return recorded
+
     here = Path(__file__).resolve().parent
     if (here / ".venv" / "Scripts" / "python.exe").is_file():
         return here
+
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     return Path(base) / "bapu" / "engine"
 
@@ -373,7 +425,13 @@ def install(tier: str = TIER_FULL, engine_dir: Path | None = None,
     progress : 回调 (stage, 0~1, 说明)
     """
     t0 = time.time()
-    engine_dir = Path(engine_dir) if engine_dir else default_engine_dir()
+    # ⚠️ 必须 resolve 成绝对路径。
+    # 踩坑实录：初次测试传了相对路径 `--dir .tmp/customtest`，
+    # location.json 里就存了 `".tmp\customtest"` —— 下次从别的 cwd 读取时
+    # 会解析到完全不同的位置，宿主导不到 venv。位置记录必须是绝对的。
+    engine_dir = (
+        Path(engine_dir) if engine_dir else default_engine_dir()
+    ).resolve()
     log: list[str] = []
 
     if tier not in TIERS:
@@ -449,6 +507,9 @@ def install(tier: str = TIER_FULL, engine_dir: Path | None = None,
 
         if progress:
             progress("verify", 1.0, "安装完成")
+
+        # 记录位置：用户可能装在非默认盘，宿主需要据此找到 venv
+        save_location(engine_dir)
 
         parts = ["基础功能 ✓"]
         if check.get("demucs"):
@@ -596,6 +657,26 @@ if __name__ == "__main__":
         progress=_p,
     )
     sys.stdout.write("\r" + " " * 84 + "\r")
+
+    # ── 机器可读的最终结果 ──
+    # 为什么必须输出：前端不能只看「子进程结束了」就当作成功 ——
+    # 安装失败（网络中断 / 磁盘不足 / pip 报错）同样是正常退出 + 一段人类可读文本。
+    # 不把结果结构化传出去，用户只会看到界面切回选择页，
+    # **完全不知道发生了什么**（主上实测踩过：点加装 → 进度条一闪 → 弹回选择页）。
+    print(
+        json.dumps(
+            {
+                "type": "install_result",
+                "ok": res.ok,
+                "tier": res.tier,
+                "message": res.message,
+                "elapsed": round(time.time() - t0, 1),
+                "engine_dir": res.engine_dir,
+                "log_tail": (res.log[-1][:800] if res.log else ""),
+            },
+            ensure_ascii=False,
+        )
+    )
 
     if res.ok:
         print(f"安装完成（{time.time() - t0:.0f} 秒）")

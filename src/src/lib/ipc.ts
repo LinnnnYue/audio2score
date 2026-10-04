@@ -324,6 +324,24 @@ export interface InstallLogEvent {
   message: string
 }
 
+/**
+ * 安装结束事件。
+ *
+ * ⚠️ `ok` 必须看，不能只把「进程结束」当作成功 ——
+ * 网络中断 / 磁盘不足 / pip 报错同样是正常退出 + 一段可读文本。
+ * 此前只传 {taskId, lines}，导致失败时界面无声弹回选择页，
+ * 用户完全不知道发生了什么。
+ */
+export interface InstallDoneEvent {
+  taskId: string
+  lines: number
+  ok: boolean
+  message: string | null
+  logTail: string | null
+  /** true = 脚本异常退出（崩溃/被杀），没来得及输出结构化结果 */
+  outcomeMissing?: boolean
+}
+
 /** 查询引擎安装状态。未就绪时 UI 应显示引导安装页。 */
 export async function checkEngine(): Promise<EngineStatus> {
   if (!inTauri()) {
@@ -345,9 +363,29 @@ export async function checkEngine(): Promise<EngineStatus> {
 export async function installEngine(
   tier: InstallTier,
   mirror = 'cn',
+  targetDir?: string,
 ): Promise<StartResult> {
   if (!inTauri()) throw new Error('非桌面环境无法安装引擎')
-  return invoke<StartResult>('install_engine', { tier, mirror })
+  return invoke<StartResult>('install_engine', {
+    tier,
+    mirror,
+    // null = 用后端默认位置（%LOCALAPPDATA%/bapu/engine）
+    targetDir: targetDir && targetDir.trim() ? targetDir : null,
+  })
+}
+
+/**
+ * 选择引擎安装目录。
+ *
+ * 为什么要有：完整档约 5.2GB，若 C 盘空间紧张，用户必须能装到 D 盘。
+ * 此前位置写死在 %LOCALAPPDATA%（即 C 盘），没有选择余地。
+ * 返回 null 表示用户取消。
+ */
+export async function pickInstallDir(): Promise<string | null> {
+  if (!inTauri()) return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const picked = await open({ directory: true, multiple: false })
+  return typeof picked === 'string' ? picked : null
 }
 
 export async function cancelInstall(taskId: string): Promise<void> {
@@ -370,8 +408,8 @@ export async function onInstallLog(
 }
 
 export async function onInstallDone(
-  cb: (e: { taskId: string; lines: number }) => void,
+  cb: (e: InstallDoneEvent) => void,
 ): Promise<UnlistenFn> {
   if (!inTauri()) return () => {}
-  return listen<{ taskId: string; lines: number }>('install://done', (e) => cb(e.payload))
+  return listen<InstallDoneEvent>('install://done', (e) => cb(e.payload))
 }

@@ -29,8 +29,10 @@ import {
   Cpu,
   Download,
   Globe,
+  HardDrive,
   Loader2,
   Package,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   X,
@@ -42,7 +44,9 @@ import {
   onInstallDone,
   onInstallLog,
   onInstallProgress,
+  pickInstallDir,
   type EngineStatus,
+  type InstallDoneEvent,
   type InstallTier,
 } from '../lib/ipc'
 import { WindowControls } from './WindowControls'
@@ -71,6 +75,10 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
   const [taskId, setTaskId] = useState('')
   /** 下载源。默认国内镜像——官方源下 2.5GB 的 PyTorch 在国内常超时 */
   const [mirror, setMirror] = useState('cn')
+  /** 自定义安装目录。空 = 用后端默认（%LOCALAPPDATA%/bapu/engine，即 C 盘） */
+  const [targetDir, setTargetDir] = useState('')
+  /** 安装结束的结构化结果（成败 + 说明） */
+  const [outcome, setOutcome] = useState<InstallDoneEvent | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
   /* ── 首启检测 ── */
@@ -112,8 +120,21 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
       setLogs((prev) => [...prev.slice(-200), e.message])
     }).then((f) => cleanups.push(f))
 
-    void onInstallDone(() => {
-      void probe()
+    void onInstallDone((e) => {
+      if (e.ok) {
+        // 成功：停在「完成」页，让用户看清装了什么、再自己进主界面。
+        // 之前这里直接 probe() → 就绪即弹回选择页，用户以为失败了。
+        setOutcome(e)
+        setPhase('done')
+      } else {
+        setError(
+          e.message ||
+            (e.outcomeMissing
+              ? '安装进程异常退出，没有返回结果。请重试或查看下方日志。'
+              : '安装失败。'),
+        )
+        setPhase('failed')
+      }
     }).then((f) => cleanups.push(f))
 
     return () => cleanups.forEach((f) => f())
@@ -131,14 +152,14 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
     setLogs([])
     setError('')
     try {
-      const r = await installEngine(tier, mirror)
+      const r = await installEngine(tier, mirror, targetDir)
       setTaskId(r.taskId)
       setMessage('正在准备…')
     } catch (e) {
       setError(String(e))
       setPhase('failed')
     }
-  }, [tier, mirror])
+  }, [tier, mirror, targetDir])
 
   const abort = useCallback(async () => {
     if (taskId) await cancelInstall(taskId)
@@ -214,6 +235,34 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                     : '基础扒谱可用，未装 Demucs'}
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* ── 安装完成 ──
+              必须给一个明确的「完成」页：此前安装成功后直接 probe()，
+              引擎就绪即被弹回选择页，用户会以为失败了
+              （主上实测反馈「跳回这个页面了，还无法返回」）。 */}
+          {phase === 'done' && (
+            <div className="flex flex-col items-center gap-5 py-8 text-center">
+              <div className="grid h-14 w-14 place-items-center rounded-full bg-[var(--accent-soft)]">
+                <Check size={26} strokeWidth={2.4} className="text-[var(--accent)]" />
+              </div>
+              <div>
+                <h2 className="text-[18px] font-semibold text-[var(--text)]">
+                  安装完成
+                </h2>
+                <p className="mt-2 max-w-[48ch] text-[13px] leading-relaxed text-[var(--text-dim)]">
+                  {outcome?.message || '所需功能已就绪。'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onReady}
+                className="inline-flex h-10 items-center gap-2 rounded-lg px-5 text-[13px] font-medium transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+                style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
+              >
+                进入主界面
+              </button>
             </div>
           )}
 
@@ -368,6 +417,57 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
                 </div>
               )}
 
+              {/* ── 安装位置 ──
+                  完整档约 5.2GB。若 C 盘紧张，用户必须能装到别的盘 ——
+                  位置写死在 %LOCALAPPDATA%（C 盘）是不合理的。 */}
+              <div className="mt-5">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <HardDrive size={12} strokeWidth={2.2} className="text-[var(--text-faint)]" />
+                  <span className="text-[12px] font-medium text-[var(--text-dim)]">
+                    安装位置
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="min-w-0 flex-1 truncate rounded-lg border px-3 py-2 text-[12px]"
+                    style={{
+                      background: 'var(--surface)',
+                      borderColor: 'var(--border)',
+                      color: targetDir ? 'var(--text)' : 'var(--text-dim)',
+                    }}
+                    title={targetDir || status?.engineDir || ''}
+                  >
+                    {targetDir || status?.engineDir || '默认位置'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void (async () => {
+                        const picked = await pickInstallDir()
+                        if (picked) setTargetDir(picked)
+                      })()
+                    }}
+                    className="shrink-0 rounded-lg border px-3 py-2 text-[12px] transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
+                  >
+                    浏览…
+                  </button>
+                  {targetDir && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetDir('')}
+                      className="shrink-0 rounded-lg border px-2.5 py-2 text-[12px] transition-[transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-faint)' }}
+                    >
+                      默认
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-faint)]">
+                  完整档需约 7.3GB 空间，请确保所选磁盘余量充足。
+                </p>
+              </div>
+
               <button
                 type="button"
                 onClick={() => void startInstall()}
@@ -380,9 +480,25 @@ export function EngineSetup({ onReady, intent = 'first-run' }: Props) {
 
               <p className="mt-4 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-[var(--text-faint)]">
                 <ShieldCheck size={13} strokeWidth={2} className="mt-px shrink-0" />
-                安装位置：{status?.engineDir ?? '%LOCALAPPDATA%\\bapu\\engine'}
-                （用户级，无需管理员权限）
+                {targetDir
+                  ? `安装位置：${targetDir}`
+                  : `默认位置：${status?.engineDir ?? '程序数据目录'}`}
               </p>
+
+              {/* 引擎已可用时给一条退路。
+                  否则用户一旦从这里进来（如点「加装」），就再也回不去主界面 —— 
+                  主上实测反馈过「还无法返回」。 */}
+              {status?.ready && (
+                <button
+                  type="button"
+                  onClick={onReady}
+                  className="mt-3 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border px-3.5 text-[12.5px] transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
+                >
+                  <RotateCcw size={13} strokeWidth={2.2} />
+                  返回主界面
+                </button>
+              )}
             </>
           )}
 

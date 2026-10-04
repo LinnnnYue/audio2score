@@ -201,6 +201,29 @@ fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// 3. 系统 python（最后兜底，几乎必然缺依赖——但给出明确错误比静默失败好）
 fn resolve_engine_python(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let dir = engine_dir(app)?;
+
+    // 0) 用户自定义安装位置（bootstrap 安装成功后写入 location.json）
+    //
+    // 为什么必须放最前：用户可以把引擎装到任意盘（如 D 盘），
+    // 若只认死的 %LOCALAPPDATA%/bapu/engine，用户选了别的盘也白选 ——
+    // 装完了这边仍找不到 venv，仍报「引擎未就绪」。
+    #[cfg(windows)]
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        let lf = PathBuf::from(local).join("bapu").join("location.json");
+        if let Ok(txt) = std::fs::read_to_string(&lf) {
+            if let Ok(v) = serde_json::from_str::<Value>(&txt) {
+                if let Some(custom) = v.get("engine_dir").and_then(|x| x.as_str()) {
+                    let py = PathBuf::from(custom)
+                        .join(".venv")
+                        .join("Scripts")
+                        .join("python.exe");
+                    if py.is_file() {
+                        return Ok((dir.clone(), py));
+                    }
+                }
+            }
+        }
+    }
     
 
     // 1) 开发态：源码目录自带 venv
@@ -793,6 +816,7 @@ pub async fn install_engine(
     state: State<'_, EngineState>,
     tier: Option<String>,
     mirror: Option<String>,
+    target_dir: Option<String>,
 ) -> Result<StartResult, String> {
     let dir = engine_dir(&app)?;
     let script = dir.join("bootstrap.py");
@@ -813,6 +837,11 @@ pub async fn install_engine(
         .arg(&tier)
         .arg("--mirror")
         .arg(&mirror)
+        // 自定义安装位置（可空 = 用 bootstrap 的默认位置）
+        .args(match &target_dir {
+            Some(d) if !d.trim().is_empty() => vec!["--dir".to_string(), d.clone()],
+            _ => vec![],
+        })
     // ── 强制子进程用 UTF-8 ──
     // stdout 被管道捕获时，Python 会用系统 locale 编码（中文 Windows = GBK），
     // 中文 JSON 到这边按 UTF-8 解码就成了「◆◆◆◆」乱码。
@@ -836,10 +865,23 @@ pub async fn install_engine(
         use std::io::BufRead;
         let reader = std::io::BufReader::new(stdout);
         let mut seen = 0usize;
+        // bootstrap.py 在结尾输出一行机器可读的 install_result JSON。
+        // 必须解析它 —— 只看「子进程结束」无法区分成功与失败：
+        // 网络中断 / 磁盘不足 / pip 报错同样是正常退出 + 一段可读文本。
+        // 不解析的话，前端只会看到界面弹回选择页，用户完全不知道发生了什么。
+        let mut outcome: Option<Value> = None;
         for line in reader.lines().map_while(std::result::Result::ok) {
             let t = line.trim();
             if t.is_empty() {
                 continue;
+            }
+            if t.starts_with('{') {
+                if let Ok(v) = serde_json::from_str::<Value>(t) {
+                    if v.get("type").and_then(|x| x.as_str()) == Some("install_result") {
+                        outcome = Some(v);
+                        continue; // 结构化结果不当普通日志
+                    }
+                }
             }
             // 抓形如 "  [████░░░]  42.0%  说明" 的进度行
             if let Some(pct) = parse_progress(t) {
@@ -859,9 +901,33 @@ pub async fn install_engine(
             }
             seen += 1;
         }
+        let ok = outcome
+            .as_ref()
+            .and_then(|v| v.get("ok"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let message = outcome
+            .as_ref()
+            .and_then(|v| v.get("message"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let log_tail = outcome
+            .as_ref()
+            .and_then(|v| v.get("log_tail"))
+            .cloned()
+            .unwrap_or(Value::Null);
+
         let _ = app_p.emit(
             "install://done",
-            serde_json::json!({ "taskId": tid_p, "lines": seen }),
+            serde_json::json!({
+                "taskId": tid_p,
+                "lines": seen,
+                "ok": ok,
+                "message": message,
+                "logTail": log_tail,
+                // 没收到结构化结果 = 脚本异常退出（崩溃/被杀）
+                "outcomeMissing": outcome.is_none(),
+            }),
         );
     });
 
