@@ -86,8 +86,12 @@ export function ProgressPanel({ task, onCancel, stageLabels }: Props) {
                   : (stageLabels[stage ?? ''] ?? '准备中')}
             </span>
           </div>
+          {/* 失败时不再重复错误文案——下方红框已完整展示 user_message，
+              这里只提示失败发生在哪个阶段，避免同一句话出现两次 */}
           <p className="mt-1 truncate text-[11.5px] text-ink-faint" title={message}>
-            {message || '—'}
+            {status === 'error'
+              ? `中断于「${stageLabels[stage ?? ''] ?? '未知阶段'}」`
+              : message || '—'}
           </p>
         </div>
 

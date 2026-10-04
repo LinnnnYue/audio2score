@@ -70,3 +70,32 @@
 - **代码状态**: 仅本地未 push（仓库无 remote）
 - **状态**: ✅完成
 - **下一步**: 派 engine-dev 分身写 Tauri command 桥与两个功能页前端；ui-visual 原型评审后落主题
+
+## [P4]-raphael-20261004-1305 应用端到端打通 + 三轮自测收官 — 2026-10-04 13:05 开始
+- **执行者**: raphael（机器：<host>）
+- **目标**: 让 Tauri 应用真正跑起来，并完成三轮对抗式自测（需求 G9 慎之勇者态度）
+- **进展**:
+  - 工作区根建 package.json（tauri CLI 必须在含 tauri.conf.json 的项目根跑，`src/` 下跑会 panic）
+  - `npx tauri build --no-bundle` 完整构建：vite build + Rust release 全通
+  - release 二进制 3.4MB，常驻内存 30.6MB
+  - **真机启动验证通过**：界面完整渲染（两功能页/霜蓝主题/无边框窗口/参数面板/状态卡）
+  - 三轮自测全部收官
+- **验证**:
+  - `npm run tauri:build -- --no-bundle` → Built application at src-tauri/target/release/musicxml-scribe.exe
+  - `engine/tests/test_progress_monotonic.py` → 6/6 OK
+  - `engine/tests/adversarial.py` → 23/23 PASS
+  - 格式矩阵 9/9、MuseScore headless 5/5、异常输入 7/7
+- **决策与坑**:
+  - **坑（启动方式错）**：`cargo build --release` 出的二进制仍指向 devUrl（localhost:1420），
+    首启白屏报 `ERR_CONNECTION_REFUSED`。**正解是 `tauri build`**——它先跑
+    vite build 再把 dist 嵌入，cargo build 不会。`beforeBuildCommand` 只在
+    tauri build 时执行
+  - **坑（我改坏了一次）**：`beforeBuildCommand` 原为 `npm --prefix ../src run build`，
+    但 tauri CLI 以 src-tauri 的父目录为 cwd，`../src` 指向错误位置 → 改为 `src`
+  - **第三轮自测修 3 个真缺陷**：tempo=0 崩溃 / 伪造文件放行 / probe 假 OK 中间态
+  - **修 4 个测试脚本假警报**：全部源于「测试自己有 bug 却当成产品缺陷」。
+    核心判据已写入 review/01-round3-adversarial.md
+- **代码状态**: 仅本地未 push（仓库无 remote）
+- **状态**: ✅完成
+- **下一步**: ① NSIS installer 打包（plan P4）② 主上手动验收主路径
+  ③ 引擎随包分发方案落地（venv 约 2.5GB，打包策略待定）
