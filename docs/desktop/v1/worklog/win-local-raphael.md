@@ -6,6 +6,7 @@
 
 - 机器：<host>（Windows，<REPO>）
 - 写作者：raphael（WorkBuddy / 智慧之王）
+- 更名注记：本项目工作区目录原名 `MusicXML 格式`、仓库与产物原名 `musicxml-scribe`；2026-10-05 统一更名为 `audio2score`。本文件正文保留当时的原始记录，文中出现的旧名/旧路径均为历史事实，非当前值。
 - 协议：`../WORKLOG-PROTOCOL.md`
 
 ---

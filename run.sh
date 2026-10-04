@@ -36,7 +36,7 @@ case "$MODE" in
     ;;
   run)
     echo "[run] 启动已构建的 release 版…"
-    "./src-tauri/target/release/musicxml-scribe.exe"
+    "./src-tauri/target/release/audio2score.exe"
     ;;
   *)
     echo "用法: ./run.sh [dev|build|installer|run]"
