@@ -5,5 +5,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    musicxml_scribe_lib::run()
+    audio2score_lib::run()
 }

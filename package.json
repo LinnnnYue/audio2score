@@ -1,5 +1,5 @@
 {
-  "name": "musicxml-scribe-workspace",
+  "name": "audio2score-workspace",
   "private": true,
   "version": "0.1.0",
   "description": "扒谱助手 — 音频自动扒谱桌面应用（工作区根）",
