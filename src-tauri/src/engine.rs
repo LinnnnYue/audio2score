@@ -154,18 +154,12 @@ fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
             .unwrap_or_default(),
     );
 
-    
-    for c in &candidates {
-        
-    }
-
     for c in candidates {
         if c.join("bridge.py").is_file() {
             let c = c.canonicalize().unwrap_or(c);
             if let Some(state) = app.try_state::<EngineState>() {
                 *state.engine_dir.lock() = Some(c.clone());
             }
-            
             return Ok(c);
         }
     }
@@ -258,6 +252,54 @@ fn resolve_engine_python(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> 
         dir.display(),
         dir.join(".venv").display()
     ))
+}
+
+/// 把 bridge.py 输出的原始事件适配成前端期望的形状。
+///
+/// ## 为什么必须抽成独立函数
+/// bridge.py 用 `id` / `data`，前端 `types.ts` 用 `taskId` / `result`。
+/// 这层转换原先是内联在闭包里的，带来两个问题：
+///   ① **无法单测**——而跨语言字段名写错**不报错**，只是事件被静默丢弃，
+///      比报错难查得多；
+///   ② 同一份代码里 `install://*` 是显式构造（字段正确），
+///      `transcribe://*` 是原样转发（字段错误），两种风格并存正是不一致的温床。
+/// 抽成纯函数后由 `contract_tests` 守护字段名，杜绝再次漂移。
+fn adapt_event(kind: &str, task_id: &str, v: &Value) -> Option<(&'static str, Value)> {
+    match kind {
+        "progress" => Some((
+            "transcribe://progress",
+            serde_json::json!({
+                "taskId": task_id,
+                "stage": v.get("stage"),
+                "pct": v.get("pct"),
+                "message": v.get("message"),
+            }),
+        )),
+        "log" => Some((
+            "transcribe://log",
+            serde_json::json!({
+                "taskId": task_id,
+                "message": v.get("message"),
+            }),
+        )),
+        "result" => Some((
+            "transcribe://done",
+            serde_json::json!({
+                "taskId": task_id,
+                "result": v.get("data"),
+            }),
+        )),
+        "error" => Some((
+            "transcribe://error",
+            serde_json::json!({
+                "taskId": task_id,
+                "message": v.get("message"),
+                "detail": v.get("detail"),
+            }),
+        )),
+        // accepted 无需下发（前端不订阅）；未知类型丢弃
+        _ => None,
+    }
 }
 
 /// 结果在同一会话内恒定、可安全缓存的命令。
@@ -374,13 +416,11 @@ fn run_once_with(
     let reader = BufReader::new(stdout);
 
     let mut result: Option<Result<Value, (String, String)>> = None;
-    let mut lines_seen: usize = 0;
     for line in reader.lines() {
         let line = match line {
             Ok(l) => l,
             Err(_) => break,
         };
-        lines_seen += 1;
         let trimmed = line.trim();
         if trimmed.is_empty() || !trimmed.starts_with('{') {
             continue;
@@ -410,8 +450,7 @@ fn run_once_with(
     }
 
     // 关闭 stdin 后 bridge 会自行退出；这里回收子进程
-    let code = child.wait().map(|s| s.code()).unwrap_or(None);
-    
+    let _ = child.wait();
 
     match result {
         Some(Ok(data)) => Ok(data),
@@ -560,66 +599,21 @@ pub async fn start_transcribe(
             };
 
             let kind = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
-            match kind {
-                "accepted" => {}
-                "progress" => {
-                    // 字段名适配：bridge.py 发 `id`，前端读 `taskId`。
-                    // 不做转换会让前端 payload.taskId 恒为 undefined，
-                    // 事件被 `if (p.taskId !== taskIdRef.current) return` 全部丢弃。
-                    let _ = app_for_events.emit(
-                        "transcribe://progress",
-                        serde_json::json!({
-                            "taskId": tid_for_reader,
-                            "stage": v.get("stage"),
-                            "pct": v.get("pct"),
-                            "message": v.get("message"),
-                        }),
-                    );
+
+            // 字段名适配统一走纯函数（可单测，见 contract_tests）
+            if let Some((evt, payload)) = adapt_event(kind, &tid_for_reader, &v) {
+                let _ = app_for_events.emit(evt, payload);
+            }
+
+            // 终止类事件需要收尾：主动关 stdin 并结束读循环。
+            // （bridge 的 `for line in sys.stdin` 收到 EOF 才退出，
+            //   不关 stdin 会让 Python 进程一直挂着、GPU 显存不释放。）
+            if kind == "result" || kind == "error" {
+                if let Some(mut sc) = sidecar_for_reader.lock().take() {
+                    drop(sc.stdin.take());
+                    let _ = sc.child.try_wait();
                 }
-                "log" => {
-                    let _ = app_for_events.emit(
-                        "transcribe://log",
-                        serde_json::json!({
-                            "taskId": tid_for_reader,
-                            "message": v.get("message"),
-                        }),
-                    );
-                }
-                "result" => {
-                    // bridge.py 把结果放在 `data`，前端读 `result`
-                    let _ = app_for_events.emit(
-                        "transcribe://done",
-                        serde_json::json!({
-                            "taskId": tid_for_reader,
-                            "result": v.get("data"),
-                        }),
-                    );
-                    // 与 run_once 同源的问题：bridge 的 `for line in sys.stdin`
-                    // 收到 EOF 才退出。扒谱完成后必须主动关 stdin，否则
-                    // Python 进程会一直挂着（GPU 显存不释放）。
-                    if let Some(mut sc) = sidecar_for_reader.lock().take() {
-                        drop(sc.stdin.take());
-                        // 给它一点时间自己收尾，不强杀
-                        let _ = sc.child.try_wait();
-                    }
-                    break;
-                }
-                "error" => {
-                    let _ = app_for_events.emit(
-                        "transcribe://error",
-                        serde_json::json!({
-                            "taskId": tid_for_reader,
-                            "message": v.get("message"),
-                            "detail": v.get("detail"),
-                        }),
-                    );
-                    if let Some(mut sc) = sidecar_for_reader.lock().take() {
-                        drop(sc.stdin.take());
-                        let _ = sc.child.try_wait();
-                    }
-                    break;
-                }
-                _ => {}
+                break;
             }
         }
 
@@ -1004,5 +998,67 @@ mod contract_tests {
             unknown.is_empty(),
             "以下键不在 bridge.py 白名单内，会被静默丢弃：{unknown:?}"
         );
+    }
+    // ── P0-A1/A2 回归：事件 payload 字段名必须与前端 types.ts 一致 ──
+    // 前端读 `taskId`（不是 `id`）、`result`（不是 `data`）。
+    // 写错**不报错**——事件会被 `if (p.taskId !== cur) return` 静默丢弃。
+
+    #[test]
+    fn progress_event_matches_frontend() {
+        let raw = serde_json::json!({
+            "type": "progress", "id": "abc",
+            "stage": "track", "pct": 0.5, "message": "追踪音符"
+        });
+        let (evt, p) = adapt_event("progress", "abc", &raw).expect("progress 应有适配");
+        assert_eq!(evt, "transcribe://progress");
+        assert_eq!(p.get("taskId").and_then(|x| x.as_str()), Some("abc"));
+        assert!(p.get("id").is_none(), "不应再出现 id 字段");
+        assert_eq!(p.get("stage").and_then(|x| x.as_str()), Some("track"));
+        assert_eq!(p.get("pct").and_then(|x| x.as_f64()), Some(0.5));
+        assert_eq!(p.get("message").and_then(|x| x.as_str()), Some("追踪音符"));
+    }
+
+    #[test]
+    fn done_event_carries_result_not_data() {
+        let raw = serde_json::json!({
+            "type": "result", "id": "abc",
+            "data": {"totalNotes": 9, "elapsed": 4.9}
+        });
+        let (evt, p) = adapt_event("result", "abc", &raw).expect("result 应有适配");
+        assert_eq!(evt, "transcribe://done");
+        assert_eq!(p.get("taskId").and_then(|x| x.as_str()), Some("abc"));
+        let r = p.get("result").expect("必须有 result 字段（前端读这个）");
+        assert_eq!(r.get("totalNotes").and_then(|x| x.as_u64()), Some(9));
+        assert!(p.get("data").is_none(), "不应再出现 data 字段");
+    }
+
+    #[test]
+    fn error_event_carries_message_and_detail() {
+        let raw = serde_json::json!({
+            "type": "error", "id": "abc",
+            "message": "文件已损坏", "detail": "rc=1"
+        });
+        let (evt, p) = adapt_event("error", "abc", &raw).expect("error 应有适配");
+        assert_eq!(evt, "transcribe://error");
+        assert_eq!(p.get("taskId").and_then(|x| x.as_str()), Some("abc"));
+        assert_eq!(p.get("message").and_then(|x| x.as_str()), Some("文件已损坏"));
+        assert_eq!(p.get("detail").and_then(|x| x.as_str()), Some("rc=1"));
+    }
+
+    #[test]
+    fn log_event_matches_frontend() {
+        let raw = serde_json::json!({"type": "log", "id": "abc", "message": "hello"});
+        let (evt, p) = adapt_event("log", "abc", &raw).expect("log 应有适配");
+        assert_eq!(evt, "transcribe://log");
+        assert_eq!(p.get("taskId").and_then(|x| x.as_str()), Some("abc"));
+        assert_eq!(p.get("message").and_then(|x| x.as_str()), Some("hello"));
+    }
+
+    /// accepted 不下发（前端不订阅）；未知类型丢弃
+    #[test]
+    fn non_terminal_events_are_dropped() {
+        let empty = serde_json::json!({});
+        assert!(adapt_event("accepted", "x", &empty).is_none());
+        assert!(adapt_event("garbage", "x", &empty).is_none());
     }
 }
