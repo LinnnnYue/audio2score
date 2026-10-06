@@ -39,7 +39,7 @@
 
 ## 快速开始（普通用户）
 
-1. 到 **[Releases](https://github.com/LinnnnYue/audio2score/releases)** 下载最新的 `扒谱助手_x.x.x_x64-setup.exe`。
+1. 到 **[Releases](https://github.com/LinnnnYue/audio2score/releases)** 下载最新版安装包（形如 `audio2score_x.x.x_x64-setup.exe`）。
 2. 安装并首次启动。应用会引导你**联网安装扒谱引擎**（引擎体积大，不随安装包分发）。
 3. 选择安装档位（见下表），等待完成。
 4. 拖入音频 → 选模式 → 点击开始 → 得到 `.mid`。
