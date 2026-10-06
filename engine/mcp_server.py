@@ -32,7 +32,8 @@ mcp_server — 扒谱助手的 MCP 服务端
   }
 }
 ```
-本仓库已提供现成配置：`mcp/bapu.json`。
+`<REPO>` 换成本仓库在你机器上的绝对路径（正斜杠即可）。
+本仓库已提供同一模板：`mcp/bapu.json`，替换 `<REPO>` 后即可用。
 """
 
 from __future__ import annotations

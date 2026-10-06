@@ -1,4 +1,5 @@
 {
+  "_comment": "把 <REPO> 替换成本仓库在你机器上的绝对路径（用正斜杠）。venv 不存在时先跑 engine/bootstrap.py。",
   "mcpServers": {
     "bapu": {
       "command": "<REPO>/engine/.venv/Scripts/python.exe",

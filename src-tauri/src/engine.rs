@@ -1900,22 +1900,30 @@ pub async fn save_diagnostic_report(target: String, content: String) -> Result<S
 //   国内节点还顺带解决了「主上与老公两台机器网络环境未必一致」的问题。
 //
 // ## 凭证放哪
-// 只放在这里。前端代码可被 WebView 开发者工具直接查看，不该持凭证。
-// （打包后两者同在一个 exe 内，逆向仍可提取 —— 故 token 泄露的最坏后果
-//  必须是「被骚扰」而非「被夺权」，PushPlus 的 token 恰好符合这一档，
-//  且可在个人中心随时重置。）
+// **不入源码**：由构建期环境变量 `BAPU_REPORT_TOKEN` 注入（见下方 REPORT_TOKEN）。
+// 前端代码可被 WebView 开发者工具直接查看，本就不该持凭证；
+// 打包后与后端同在一个 exe 内，逆向仍可提取 —— 故 token 泄露的最坏后果
+// 必须是「被骚扰」而非「被夺权」，PushPlus 的 token 恰好符合这一档，
+// 且可在个人中心随时重置。
 // ─────────────────────────────────────────────────────────────
 
 /// 上报端点。用 batchSend 而非 send —— 后者只支持单渠道，
 /// 而我们要「邮件留档 + 微信即时」，一次请求两处落脚。
 const REPORT_ENDPOINT: &str = "https://www.pushplus.plus/batchSend";
 
-/// 主上的 PushPlus token。
+/// 上报凭证（PushPlus token）。
 ///
-/// 凭证只落在这一行。前端可被 WebView 开发者工具查看，不该持凭证。
-/// 泄露的最坏后果限于「别人能往主上邮箱/微信推消息」——骚扰级而非夺权级，
-/// 且可在 PushPlus 个人中心随时重置（重置后需重新发一版客户端）。
-const REPORT_TOKEN: &str = "";
+/// **源码不落凭证**：由构建期环境变量 `BAPU_REPORT_TOKEN` 注入，例如
+/// `set BAPU_REPORT_TOKEN=xxx && npm run tauri:build`（PowerShell 用 `$env:`）。
+/// 未注入时为空串，`submit_diagnostic_report` 会走 unconfigured 分支静默降级，
+/// 主流程完全不受影响。
+///
+/// 为何不硬编码：仓库已开源，源码即公开；凭证一旦入库便随 git 历史永久留存，
+/// 删掉当前版本也收不回。故改由构建注入。
+const REPORT_TOKEN: &str = match option_env!("BAPU_REPORT_TOKEN") {
+    Some(t) => t,
+    None => "",
+};
 
 /// 投递渠道。mail = 账号绑定的邮箱（留档、可检索）；wechat = 公众号（即时）。
 /// 两者独立成败，一个挂了另一个照送。

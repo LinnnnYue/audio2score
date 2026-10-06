@@ -239,7 +239,7 @@ def verify_musescore_opens(midi_path: str, timeout: int = 60) -> tuple[bool, str
     ### 另一条教训：验证脚本报错 ≠ 产物有问题
     本函数曾对全部 5 个产出报 rc=1320，一度被误判为「MIDI 全坏」。
     真因是**验证脚本自身的相对路径写错**（在项目根目录跑却用了 `../.tmp/`，
-    指向不存在的 `<TMP>`），文件其实完好，直接命令行 rc=0 出 PDF 42KB。
+    指向不存在的 `<TMP>/.tmp`），文件其实完好，直接命令行 rc=0 出 PDF 42KB。
     故本函数内部一律用 `os.path.abspath(midi_path)`，不依赖调用方的工作目录。
     **判据：验证失败时，先确认验证脚本自己没错，再怀疑产物。**
 

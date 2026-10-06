@@ -1,10 +1,10 @@
-# worklog — win-<host> / raphael
+# worklog — win-local / raphael
 
 > 本文件由 dev-flow skill 分发，逐字拷贝为 `worklog/<平台>-<机器名>-<写作者>.md` 后使用。
 > 记录规则（第 0 铁律/分工/恢复流程/条目模板/双写顺序/记录纪律）见上一级目录 `../WORKLOG-PROTOCOL.md`，本文件不重复规则。
 > 纪律：只写自己的文件；条目倒序（最新在顶）；开工开条目、收工更新同一条目不新开。
 
-- 机器：<host>（Windows，<REPO>）
+- 机器：win-local（Windows，<REPO>）
 - 写作者：raphael（WorkBuddy / 智慧之王）
 - 更名注记：本项目工作区目录原名 `MusicXML 格式`、仓库与产物原名 `musicxml-scribe`；2026-10-05 统一更名为 `audio2score`。本文件正文保留当时的原始记录，文中出现的旧名/旧路径均为历史事实，非当前值。
 - 协议：`../WORKLOG-PROTOCOL.md`
@@ -14,7 +14,7 @@
 <!-- 新条目插在此线下方、旧条目之上；条目格式见 WORKLOG-PROTOCOL.md §4 -->
 
 ## [P4-3]-raphael-20261005-0240 模型来源三跳治理 + 音频直扒页单轨化 — 2026-10-05 02:40 开始
-- **执行者**: raphael（WorkBuddy / 智慧之王，机器：<host>）
+- **执行者**: raphael（WorkBuddy / 智慧之王，机器：win-local）
 - **目标**: 主上一句三合一指令，三件全做 ——
   ① 分离模型下载准备多个镜像源，哪个通走哪个（修老公机器 HF 超时）
   ② 功能页 2「基本扒谱」更名为更合适的名字
@@ -88,14 +88,14 @@
   以 `7z l` 对账：**1667 files**，`engine\*.py` 8 个 + `engine\tools\*.py` 4 个全在
   （pipeline/bootstrap/cli/mcp_server/separator 时间戳均为本次，证明新代码入包），
   `runtime\python\python.exe`（91648 B）在包内 → 无 Python 机器仍可首启引导安装。
-  已归档 `<DOCS>\扒谱助手\`，MD5 与构建产物逐字节一致；
+  已归档 `<交付目录>\`，MD5 与构建产物逐字节一致；
   0.1.0 版原地保留（版本号不同故无需 `.bak` 覆盖）。
 - **下一步**: 老公机器实测三件事 ——① 首次分离不再卡在 huggingface.co
   （应走官方直链，或 hf-mirror/aifasthub）② 音频直扒页能看到「单轨直扒（人声旋律）」
   且默认选中 ③ 出单轨 MIDI 可直接在 MuseScore 打开演奏
 
 ## [design]-raphael-20261004-1201 扒谱桌面应用立项 — 2026-10-04 12:01 开始
-- **执行者**: raphael（WorkBuddy 总监，机器：<host>）
+- **执行者**: raphael（WorkBuddy 总监，机器：win-local）
 - **目标**: 完成立项解构 + 团队设计 + 需求/边界/计划三文档落地，进入 P0 引擎层
 - **上下文**: 主上基于 https://github.com/GuyueHermit/AutoTranscriber 新立项；已确认裁决：Tauri 2 + React/TS + Tailwind；4 版视觉方向全做且可切换；**导出仅 MIDI**（不做 MusicXML）
 - **进展**:
@@ -131,7 +131,7 @@
 - **下一步**: 收 arch-scout 的 API 契约报告 → 写 `engine/bridge.py` 适配层 → 打通端到端单文件扒谱
 
 ## [P1]-raphael-20261004-1226 引擎六路径端到端打通 — 2026-10-04 12:26 开始
-- **执行者**: raphael（机器：<host>）
+- **执行者**: raphael（机器：win-local）
 - **目标**: 让六条产品路径全部端到端产出 MuseScore 可用的 MIDI（需求 A1 + A5）
 - **上下文**: 依赖 P0（arch-scout 侦察报告）与已修的三个致命缺陷
 - **进展**:
@@ -145,7 +145,7 @@
   - `cd engine && ../engine/.venv/Scripts/python.exe pipeline.py full_auto <wav> <out.mid>`
   - MuseScore 验证：`Voice(1音) + Accompaniment(9音) / Instrument(9音) / Voice(1音) / Accompaniment(9音) / Voice+Accompaniment`
 - **决策与坑**:
-  - **坑（自造假警报，已纠正）**：验证脚本在项目根目录跑却用 `../.tmp/` 相对路径，指向不存在的 `<TMP>`，导致 5 个文件全报 rc=1320，一度被误判为「MIDI 全坏」。**判据：验证失败时先确认验证脚本自己没错，再怀疑产物。** 已在 `midi_post.verify_musescore_opens` 内改用 `os.path.abspath` 并把该教训写进 docstring
+  - **坑（自造假警报，已纠正）**：验证脚本在项目根目录跑却用 `../.tmp/` 相对路径，指向不存在的 `<TMP>/.tmp`，导致 5 个文件全报 rc=1320，一度被误判为「MIDI 全坏」。**判据：验证失败时先确认验证脚本自己没错，再怀疑产物。** 已在 `midi_post.verify_musescore_opens` 内改用 `os.path.abspath` 并把该教训写进 docstring
   - **坑（吞错反噬）**：`separator.py` 早期版本把 demucs 真实异常吞掉直接降级 HPSS，表现为「分离质量差」，掩盖了真因（apply_model 传了 3.x 旧参数 `ref`）。**教训：降级不能吞掉失败原因**，现已完整保留失败链并在 UI/日志暴露
   - demucs 4.1.0 API 三处坑：`apply_model()` 无 `ref` 参数 / `save_audio(wav, path, sr)` 波形在前 / `num_workers` 在 Windows 有并发风险改 0
   - 禁用 CREPE 是**红线 B-1 的硬性要求**，非偏好选择
@@ -154,7 +154,7 @@
 - **下一步**: 派 engine-dev 分身写 Tauri command 桥与两个功能页前端；ui-visual 原型评审后落主题
 
 ## [P4]-raphael-20261004-1305 应用端到端打通 + 三轮自测收官 — 2026-10-04 13:05 开始
-- **执行者**: raphael（机器：<host>）
+- **执行者**: raphael（机器：win-local）
 - **目标**: 让 Tauri 应用真正跑起来，并完成三轮对抗式自测（需求 G9 慎之勇者态度）
 - **进展**:
   - 工作区根建 package.json（tauri CLI 必须在含 tauri.conf.json 的项目根跑，`src/` 下跑会 panic）
@@ -183,11 +183,11 @@
   ③ 引擎随包分发方案落地（venv 约 2.5GB，打包策略待定）
 
 ## [P4-2]-raphael-20261004-1338 三项遗留收官 — 2026-10-04 13:38 开始
-- **执行者**: raphael（机器：<host>）
+- **执行者**: raphael（机器：win-local）
 - **目标**: NSIS 打包 / 干净环境引导安装实测 / 冷门格式白名单治理
 - **进展**:
   1. **NSIS installer 打包完成**：`扒谱助手_0.1.0_x64-setup.exe` 1.32 MiB，
-     已归档 `<DOCS>\扒谱助手\`
+     已归档 `<交付目录>\`
   2. **干净环境引导安装实测通过**：basic 档 64 秒装完，状态汇报与实况一致
   3. **冷门格式白名单改为可自证**：按 ffmpeg 解码器存在性动态判定
   4. **打包兼容性修复**：上游路径从单点假设改为多候选探测

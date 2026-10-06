@@ -166,9 +166,9 @@ bridge 正常退出。**只有 Tauri 那种「写完不关」的调用方式才�
 
 | 项 | 状态 |
 |---|---|
-| 引擎源码 | `C:/Users/<user>\AppData\Local\扒谱助手\engine\`（8 个 .py + tools）✅ |
-| 引擎 venv | `C:/Users/<user>\AppData\Local\bapu\engine\.venv\` ✅（basic 档，2026-10-04 13:44 装） |
-| 安装目录 exe | `C:/Users/<user>\AppData\Local\扒谱助手\musicxml-scribe.exe` |
+| 引擎源码 | `C:\Users\<user>\AppData\Local\扒谱助手\engine\`（8 个 .py + tools）✅ |
+| 引擎 venv | `C:\Users\<user>\AppData\Local\bapu\engine\.venv\` ✅（basic 档，2026-10-04 13:44 装） |
+| 安装目录 exe | `C:\Users\<user>\AppData\Local\扒谱助手\musicxml-scribe.exe` |
 | 手动复现「安装目录源码 + LOCALAPPDATA venv」 | **完全正常**，modes 返回 6 个模式 |
 | `bootstrap.py --status` 手动跑 | **正常**，ready:true / basic:true |
 | GUI 启动即写日志 | 写入 `[DIAG] app started`，但**后续 engine_dir/run_once 的诊断一行未写** |

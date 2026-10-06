@@ -74,7 +74,7 @@ cd /c/Windows/System32 && <exe>       # 4. 从无关 cwd 启动（模拟开始�
 ### 实测日志（修复后）
 
 ```
-[engine_dir] exe_dir=Some("C:/Users/<user>\\AppData\\Local\\扒谱助手")
+[engine_dir] exe_dir=Some("C:\\Users\\<user>\\AppData\\Local\\扒谱助手")
 [engine_dir] candidate "...\\扒谱助手\\engine" bridge=true      ← exe 同级命中
 [engine_dir] RESOLVED "...\\扒谱助手\\engine"
 [resolve] dev venv missing, try LOCALAPPDATA                   ← 源码目录无 venv，正确降级
