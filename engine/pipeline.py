@@ -149,6 +149,24 @@ STAGE_LABELS = {
     "export": "生成 MIDI",
 }
 
+# ── 全局进度刻度（全流程**一套**刻度，各阶段按区间映射）──
+#
+# 踩坑实录（2026-10-07 主上反馈「运行时候的进度条百分比会直接到 100」）：
+# 初版没有统一刻度，**两套刻度在同一个轴上打架**：
+#   · separator 内部推的是**阶段内** 0~1（0.05 → 0.3 → 0.9 → 1.0）
+#   · 扒谱阶段用的是**另一套** 0~0.9（full_auto = 伴奏 0~0.45 + 人声 0.45~0.9）
+# 且 `transcribe()` 把 separator 的原始回调**直连**给全局 progress（未经映射），
+# 于是分离一结束进度就到 1.0；而 `_mono` 是**单调函数**（只增不减），
+# 后续所有真实进度全被钳在 1.0 → 进度条从分离完成起**永久卡在 100%**。
+# 另有一处 `_mono("prepare", 1.0, "准备完成")` 把「阶段结束」误写成「全局 1.0」。
+#
+# 正解：全流程一套刻度，**任何模块只准推自己的阶段内 0~1**，
+#       由本文件的 adapter 换算成全局值（见 `_sep_progress`）。
+PROGRESS_PREPARE = (0.0, 0.05)     # 校验音频 / 读取文件
+PROGRESS_SEPARATE = (0.05, 0.50)   # Demucs 分离（耗时大头）
+PROGRESS_TRACK = (0.50, 0.90)      # 频谱分析 + 音符追踪
+PROGRESS_EXPORT = (0.90, 1.00)     # 写出 MIDI
+
 # 频谱参数
 FMIN = 65.41          # C2
 FMAX = 4186.0         # C8（上游硬编码 2093，此处上提以覆盖高音声部）
@@ -595,7 +613,16 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             _progress_state["last"] = max(start_pct, _progress_state["last"])
 
         def _mono_pre(msg: str) -> None:
-            _mono("prepare", 0.05, msg)
+            _mono("prepare", PROGRESS_PREPARE[0] + 0.02, msg)
+
+        def _sep_progress(stage: str, pct: float, msg: str) -> None:
+            """把 separator 的**阶段内** 0~1 进度映射到全局分离区间。
+
+            踩坑实录：初版把 `progress` 原样传给 run_separation，分离结束时
+            它推的 1.0 被当成**全局**进度 → 进度条提前跑满（详见文件顶部刻度说明）。
+            """
+            lo, hi = PROGRESS_SEPARATE
+            _mono(stage, lo + (hi - lo) * max(0.0, min(1.0, float(pct))), msg)
 
         # ---------- 阶段 1：准备 ----------
         _mono_pre("准备音频…")
@@ -607,15 +634,21 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
 
         # ---------- 阶段 2：分离（按模式）----------
         need_sep = req.mode in {"full_auto", "accompaniment", "vocals"}
+
+        # 无分离时，扒谱直接接在准备之后，**省下整个分离区间**——
+        # 否则进度条会在 5% 处干等一段并不存在的「分离」。
+        track_lo = PROGRESS_TRACK[0] if need_sep else PROGRESS_PREPARE[1]
+        track_span = PROGRESS_TRACK[1] - track_lo
+
         if need_sep:
-            _mono("separate", 0.02, "正在分离人声与伴奏…")
+            _mono("separate", PROGRESS_SEPARATE[0], "正在分离人声与伴奏…")
             try:
                 sep_result = run_separation(
                     req.input_path,
                     model=req.demucs_model,
                     device=req.device,
                     workdir=os.path.join(workdir, "sep"),
-                    progress=progress,
+                    progress=_sep_progress,
                     allow_hpss_fallback=req.allow_hpss_fallback,
                 )
             except SeparationError as e:
@@ -626,7 +659,9 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
                     "Demucs 分离不可用，已降级为中频分离（人声/伴奏分得不如正常干净）。"
                 )
 
-        _mono("prepare", 1.0, "准备完成")
+        # 准备阶段收尾。有分离时它已停在分离区间终点（0.50）；无分离时直接
+        # 推进到扒谱起点。**绝不能写 1.0** —— 那是全局进度，会把后续全部钳死。
+        _mono("prepare", track_lo, "准备完成")
 
         # ---------- 阶段 3-4：扒谱 ----------
         track_notes_list: list[list[dict]] = []
@@ -656,53 +691,53 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
         if req.mode == "full_auto":
             assert sep_result is not None
             # 伴奏先（多音高），人声后（单旋律）——与上游 main.py 的顺序一致
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             accomp = _transcribe_cqt(
                 sep_result.accompaniment_path, safe_n_peaks, req.hop_length,
                 safe_onset, safe_pitch, req.min_note_duration,
                 req.perceptual, req.simplify, req.piano_mode,
-                _mono, "伴奏", 0.0, 0.45,
+                _mono, "伴奏", track_lo, track_span * 0.5,
             )
-            _switch("spectrum", 0.45)
+            _switch("spectrum", track_lo + track_span * 0.5)
             vocal = _transcribe_vocal(
                 sep_result.vocals_path, req.hop_length, req.min_note_duration,
-                _mono, "人声", 0.45, 0.45,
+                _mono, "人声", track_lo + track_span * 0.5, track_span * 0.5,
             )
             track_notes_list = [vocal, accomp]
             roles = ["vocals", "accompaniment"]
 
         elif req.mode == "accompaniment":
             assert sep_result is not None
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             track_notes_list = [
                 _transcribe_cqt(
                     sep_result.accompaniment_path, n_peaks, req.hop_length,
                     req.onset_threshold, req.pitch_threshold, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
-                    _mono, "伴奏",
+                    _mono, "伴奏", track_lo, track_span,
                 )
             ]
             roles = ["accompaniment"]
 
         elif req.mode == "vocals":
             assert sep_result is not None
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             track_notes_list = [
                 _transcribe_vocal(
                     sep_result.vocals_path, req.hop_length,
-                    req.min_note_duration, _mono, "人声",
+                    req.min_note_duration, _mono, "人声", track_lo, track_span,
                 )
             ]
             roles = ["vocals"]
 
         elif req.mode == "basic":
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             track_notes_list = [
                 _transcribe_cqt(
                     req.input_path, safe_n_peaks, req.hop_length,
                     safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
-                    _mono, "乐器",
+                    _mono, "乐器", track_lo, track_span,
                 )
             ]
             roles = ["instrument"]
@@ -712,11 +747,11 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             # 走 pYIN 单音高追踪（与 `vocals` 同一算法），而非 CQT 多音高——
             # 人声与独奏小提琴都是单声部，多音高识别会把泛音误判成和声声部，
             # 生成的谱面出现大量无法演奏的假声部。主上明确要「单轨小提琴谱」。
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             track_notes_list = [
                 _transcribe_vocal(
                     req.input_path, req.hop_length,
-                    req.min_note_duration, _mono, "人声",
+                    req.min_note_duration, _mono, "人声", track_lo, track_span,
                 )
             ]
             roles = ["vocals"]
@@ -724,13 +759,13 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
         elif req.mode == "basic_accompaniment":
             # 单轨 · 伴奏多音高：不分离，对整段音频做多音高识别。
             # 与 `basic_vocals` 成对存在，留给将来把伴奏交给他种复音乐器（钢琴/吉他）。
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             track_notes_list = [
                 _transcribe_cqt(
                     req.input_path, safe_n_peaks, req.hop_length,
                     safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
-                    _mono, "伴奏",
+                    _mono, "伴奏", track_lo, track_span,
                 )
             ]
             roles = ["accompaniment"]
@@ -742,42 +777,42 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             # 允许多选最多 6 个文件（`max={ws.isBasicMulti ? 6 : 1}`）——
             # 于是后 5 个文件被**静默丢弃**，用户以为都扒了。
             # 多文件输入必须逐轨处理，否则就是「悄悄吞文件」。
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             paths = [req.input_path, *req.extra_inputs]
-            span = 1.0 / len(paths)
+            span = track_span / len(paths)
             multi = len(paths) > 1
             for idx, path in enumerate(paths):
-                _switch("spectrum", span * idx)
+                _switch("spectrum", track_lo + span * idx)
                 track_notes_list.append(
                     _transcribe_cqt(
                         path, safe_n_peaks, req.hop_length,
                         safe_onset, safe_pitch, req.min_note_duration,
                         req.perceptual, req.simplify, req.piano_mode,
-                        _mono, f"第 {idx + 1} 轨" if multi else "乐器", 0.0, span,
+                        _mono, f"第 {idx + 1} 轨" if multi else "乐器",
+                        track_lo + span * idx, span,
                     )
                 )
                 roles.append("instrument")
 
         elif req.mode == "pre_separated":
             # 用户已自行分离，跳过分离阶段
-            _switch("spectrum", 0.0)
+            _switch("spectrum", track_lo)
             n_extra = max(1, len(req.extra_inputs))
-            head_span = 1.0 / (n_extra + 1)
+            step = track_span / (n_extra + 1)
             vocal = _transcribe_vocal(
                 req.input_path, req.hop_length, req.min_note_duration,
-                _mono, "人声", 0.0, head_span,
+                _mono, "人声", track_lo, step,
             )
             track_notes_list = [vocal]
             roles = ["vocals"]
 
-            span = 1.0 / (n_extra + 1)
             for idx, extra in enumerate(req.extra_inputs):
-                _switch("spectrum", span * (idx + 1))
+                _switch("spectrum", track_lo + step * (idx + 1))
                 accomp = _transcribe_cqt(
                     extra, safe_n_peaks, req.hop_length,
                     safe_onset, safe_pitch, req.min_note_duration,
                     req.perceptual, req.simplify, req.piano_mode,
-                    _mono, "伴奏", 0.0, span,
+                    _mono, "伴奏", track_lo + step * (idx + 1), step,
                 )
                 track_notes_list.append(accomp)
                 roles.append("accompaniment")
@@ -786,7 +821,7 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
             raise TranscribeError(f"未知的扒谱模式：{req.mode}", f"mode={req.mode}")
 
     # ---------- 阶段 5：导出 ----------
-        _mono("export", max(0.9, _progress_state["last"]), "正在生成 MIDI…")
+        _mono("export", max(PROGRESS_EXPORT[0], _progress_state["last"]), "正在生成 MIDI…")
 
         if any(len(t) == 0 for t in track_notes_list):
             empty_roles = [roles[i] for i, t in enumerate(track_notes_list) if not t]
@@ -810,7 +845,7 @@ def transcribe(req: TranscribeRequest, progress: ProgressFn | None = None) -> Tr
                 "zero notes produced",
             )
 
-        _mono("export", 1.0, f"完成，共 {total} 个音符")
+        _mono("export", PROGRESS_EXPORT[1], f"完成，共 {total} 个音符")
 
         return TranscribeResult(
             output_path=req.output_path,

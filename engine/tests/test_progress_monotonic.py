@@ -47,6 +47,7 @@ for mode, inp, extras in CASES:
     )
 
     last, bad, n, final, result_ok = -1.0, 0, 0, 0.0, False
+    events: list[tuple[str, float]] = []
     for line in proc.stdout.splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -59,6 +60,7 @@ for mode, inp, extras in CASES:
         if obj.get("type") == "progress":
             pct = obj["pct"]
             n += 1
+            events.append((obj.get("stage", "?"), pct))
             if pct < last - 1e-9:
                 bad += 1
             last = max(last, pct)
@@ -68,12 +70,23 @@ for mode, inp, extras in CASES:
         elif obj.get("type") == "error":
             print(f"  [ERROR] {obj.get('message')}")
 
-    status = "OK " if (bad == 0 and result_ok and final >= 0.999) else "BAD"
+    # ★ 2026-10-07 新增判据（主上反馈「运行时候的进度条百分比会直接到 100」）：
+    # 满格（>= 0.999）**只允许出现在最后一个进度事件**。
+    # 早期即满格 ⇒ 某阶段把「阶段内 1.0」当成全局进度发了，或刻度写错。
+    # 根因：separator 的阶段内 0~1 被直连全局 + `_mono("prepare", 1.0)`。
+    full_idx = next((i for i, (_, p) in enumerate(events) if p >= 0.999), None)
+    early_full = full_idx is not None and full_idx < len(events) - 1
+    full_stage = events[full_idx][0] if full_idx is not None else "-"
+    full_pos = f"{full_idx}/{n}" if full_idx is not None else "-/-"
+
+    ok = bad == 0 and result_ok and final >= 0.999 and not early_full
+    status = "OK " if ok else "BAD"
     label = f"{mode}+{len(extras)}" if extras else mode
     print(
-        f"{status} {label:21s} 事件 {n:3d} | 倒退 {bad} | 终值 {final:.3f} | 结果 {'有' if result_ok else '无'}"
+        f"{status} {label:21s} 事件 {n:3d} | 倒退 {bad} | 终值 {final:.3f} | "
+        f"满格于 {full_stage}@{full_pos} | 结果 {'有' if result_ok else '无'}"
     )
-    total_bad += bad
+    total_bad += bad + (1 if early_full else 0)
 
-print(f"\n总倒退次数：{total_bad}")
+print(f"\n总倒退/提前满格次数：{total_bad}")
 sys.exit(0 if total_bad == 0 else 1)
