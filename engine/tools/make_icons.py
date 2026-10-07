@@ -15,9 +15,17 @@ make_icons.py — 从 SVG 母版生成应用图标全套
   src-tauri/icons/source/icon-small.svg  —— 小尺寸版（16/24/32px 帧，图案放大 + 线加粗）
   src-tauri/icons/source/favicon.svg     —— 前端标签页图标（本脚本顺带同步）
 
+## 造型（2026-10-07 定稿）
+**白底圆角方块 + 青(#6fe3ff)→紫(#a99cff) 渐变六边形音符**，几何与官网 logo 逐字一致。
+底板照搬官网页头 .brand-mark 在 light 主题下的规格：
+白底 rgba(255,255,255,.94) + 极淡描边 rgba(30,70,150,.20) + 冷蓝微光。
+
+⚠️ 中途走过弯路：第一版做成**深墨底**（以为官网是深色），主上指出官网那枚是白底、
+「很干净很纯净很舒服」，遂改回白底。造型的权威来源是官网页头，不是印象。
+
 ## 为什么要给小尺寸单独一版
-线宽是相对量。主母版在 1024 画布上线宽 2.4，缩到 16px 只剩 0.7px ——
-糊成一团。小尺寸版把图案放大到约 92%、线宽加到 3.6，16px 下线宽约 1.7px，
+线宽是相对量。主母版在 1024 画布上线宽 2，缩到 16px 只剩 0.6px ——
+糊成一团。小尺寸版把图案放大到约 70%、线宽加到 2.5，16px 下线宽约 1px，
 六边形与符头都还认得出来。Windows 任务栏/开始菜单常用的正是 24–32px。
 
 ## 输出
@@ -164,28 +172,35 @@ def main() -> None:
         if any(a > 8 for a in corners):
             raise SystemExit(f"四角未透明（alpha={corners}）：圆角被填平了")
 
-        # ── 自检 3：小尺寸下认得出来 + 底板不得是纯黑 ──
+        # ── 自检 3：小尺寸下认得出 + 底板必须是白底 ──
         #
-        # 旧版这里守的是「中心平均亮度 ≥ 140」（当时是亮底方案，主上反馈过
-        # 「暗暗丑丑的」）。2026-10-07 换成官网的深墨底方案后，这条判据本身
-        # 失效了 —— 但「小尺寸不能糊」的诉求没变，改守**对比度**：
-        # 深底上的青色线条与底色亮度差必须足够大，16px 才立得住。
+        # 判据得跟着设计走。当前方案是「白底 + 青紫渐变线框」（照搬官网页头），
+        # 于是守两件事：
+        #   a) 16px 时线条仍成"形" —— 非白像素太少就说明糊没/消失了
+        #   b) 底板是浅色（白底）—— 哪天被误改回深底，在这拦下
+        #
+        # 沿革：旧版守「中心平均亮度 ≥ 140」（亮底方案）→ 换深墨底时改成
+        # 「极差 ≥ 90」（深底上的亮线）→ 换回白底后极差天然只有 ~60，必然误报。
+        # 三次换判据的教训：判据本身也是设计的一部分，改设计就得重审判据。
         with Image.open(ico_path) as ico:
             ico.size = (16, 16)
             tiny = ico.convert("RGBA")
-        lum = []
-        for x in range(tiny.size[0]):
-            r, g, b, a = tiny.getpixel((x, tiny.size[1] // 2))
-            if a > 40:
-                lum.append(round(0.2126 * r + 0.7152 * g + 0.0722 * b))
-        spread = (max(lum) - min(lum)) if lum else 0
-        if spread < 90:
-            raise SystemExit(f"16px 下明暗对比不足（极差 {spread} < 90），会糊成一团")
+        ink = 0
+        for y in range(tiny.size[1]):
+            for x in range(tiny.size[0]):
+                r, g, b, a = tiny.getpixel((x, y))
+                if a > 60 and (255 - min(r, g, b)) > 40:
+                    ink += 1
+        if ink < 18:
+            raise SystemExit(f"16px 下图案几乎不可辨（非白像素 {ink} < 18），会糊成一团")
 
-        # 红线：禁纯黑。底板取顶部中央（那里一定是底，不会是线条）。
+        # 底板取顶部中央（图案在中心，这一点必是底）。白底 → 三通道都很亮。
         r, g, b, a = master.getpixel((master.size[0] // 2, int(master.size[1] * 0.06)))
-        if a > 0 and max(r, g, b) < 6:
-            raise SystemExit(f"底板接近纯黑（#{r:02x}{g:02x}{b:02x}）—— 外观红线禁纯黑")
+        if a > 0 and min(r, g, b) < 200:
+            raise SystemExit(
+                f"底板不是白底（#{r:02x}{g:02x}{b:02x}，最小值 {min(r,g,b)} < 200）—— "
+                "外观红线：底板须为浅色，禁纯黑"
+            )
 
         # ── 顺带同步前端 favicon（同一份源，避免两处漂移）──
         fav_src = os.path.join(src_dir, "favicon.svg")
@@ -202,7 +217,7 @@ def main() -> None:
         if os.path.isfile(p):
             print(f"  {f:20s} {os.path.getsize(p) // 1024}KB")
     print(f"  icon.ico 档位：{got}（16/24/32 加粗版，48+ 精致版）")
-    print(f"  16px 明暗极差 {spread} / 四角透明 ✓ / 底板非纯黑 ✓")
+    print(f"  16px 非白像素 {ink} / 四角透明 ✓ / 底板白底 ✓")
     print("  favicon 已同步 → src/public/favicon.svg")
 
 

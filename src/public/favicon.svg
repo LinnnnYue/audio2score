@@ -1,28 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <!-- 扒谱助手品牌标志：六边形 + 双八分音符。
        与 src-tauri/icons（桌面应用图标）、src/src/components/BrandMark.tsx 同源几何。
-       此处用「小尺寸优化版」线宽（3.6）—— favicon 主要显示在 16–32px。 -->
+       白底圆角方块 + 青紫渐变 —— 照搬官网页头 .brand-mark 在 light 主题下的规格。
+       尺寸小，故线宽取「放大加粗」档（2.5）。 -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1d2637"/>
-      <stop offset="1" stop-color="#0c1018"/>
-    </linearGradient>
-    <linearGradient id="ink" x1="6" y1="3" x2="26" y2="29" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#6fe3ff"/>
       <stop offset="1" stop-color="#a99cff"/>
     </linearGradient>
   </defs>
 
-  <rect width="32" height="32" rx="5.75" fill="url(#bg)"/>
-  <rect x="0.219" y="0.219" width="31.5625" height="31.5625" rx="5.5625" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="0.4375"/>
+  <rect width="32" height="32" rx="7.25" fill="#ffffff"/>
+  <rect x="0.094" y="0.094" width="31.812" height="31.812" rx="7.156" fill="none"
+        stroke="#1e4696" stroke-opacity="0.10" stroke-width="0.1875"/>
 
-  <g transform="translate(16 16) scale(0.921875) translate(-16 -16)"
-     stroke="url(#ink)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M16 2l11 7v14l-11 7l-11 -7V9z"/>
-    <path d="M13 20V12l8-2v8"/>
+  <g transform="translate(16 16) scale(0.796875) translate(-16 -16)"
+     stroke="url(#ink)" stroke-width="2.5" stroke-linejoin="round" fill="none">
+    <path d="M16 3l10.5 6.5v13L16 29 5.5 22.5v-13z"/>
+    <path d="M13.2 20.2v-7.6l7-1.8v7.4" stroke-linecap="round"/>
   </g>
-  <g transform="translate(16 16) scale(0.921875) translate(-16 -16)">
-    <circle cx="11" cy="20.5" r="3.2" fill="#6fe3ff"/>
-    <circle cx="19" cy="18.5" r="3.2" fill="#a99cff"/>
+  <g transform="translate(16 16) scale(0.796875) translate(-16 -16)">
+    <circle cx="11.4" cy="20.6" r="2.5" fill="#6fe3ff"/>
+    <circle cx="18.4" cy="18.8" r="2.5" fill="#a99cff"/>
   </g>
 </svg>

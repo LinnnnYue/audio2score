@@ -16,7 +16,7 @@ make_icon_preview.py — 生成图标预览对照图
   · 小尺寸改为**直接取 icon.ico 里的真实帧**，不再拿主母版缩放。
     因为 16/24/32 那三档是专门做过光学调整的加粗版 —— 拿主母版缩出来的
     预览会「比实际交付的更好看」，等于自欺。
-  · 副标题随新设计更新（深墨底 + 青紫渐变，承官网造型）。
+  · 副标题随新设计更新（白底 + 青紫渐变，承官网页头 logo 造型）。
 
 用法：python engine/tools/make_icon_preview.py
 输出：docs/icon-preview.png
@@ -66,7 +66,7 @@ def main() -> None:
     f_tiny = _font(11)
 
     d.text((24, 20), "扒谱助手 · 图标预览", font=f_title, fill=(28, 40, 52))
-    d.text((24, 50), "六边形音符 · 深墨底 + 青紫渐变（造型与官网图标同源）", font=f_label, fill=(110, 126, 140))
+    d.text((24, 50), "六边形音符 · 白底 + 青紫渐变（造型与官网页头 logo 一致）", font=f_label, fill=(110, 126, 140))
 
     def frame(sz: int) -> Image.Image:
         """小尺寸取 ico 真实帧，大尺寸从主母版缩放。"""
