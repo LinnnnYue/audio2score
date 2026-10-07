@@ -17,7 +17,7 @@ import { ProgressPanel } from '../components/ProgressPanel'
 import { ResultCard } from '../components/ResultCard'
 import { Section } from '../components/Section'
 import { Tooltip } from '../components/Tooltip'
-import { previewOutput, separationLabel, useWorkspace } from '../lib/useWorkspace'
+import { separationLabel, useWorkspace } from '../lib/useWorkspace'
 
 export function SongTranscribe() {
   const ws = useWorkspace({ page: 1, defaultMode: 'full_auto' })
@@ -137,7 +137,7 @@ export function SongTranscribe() {
               <div className="mt-3 flex items-center gap-2 rounded-[var(--r-sm)] border border-line px-3 py-2">
                 <Save size={12} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
                 <span className="num min-w-0 flex-1 truncate text-[11px] text-ink-faint">
-                  {previewOutput(ws.files, ws.outputPath) ?? '输出到源文件同目录'}
+                  {ws.outputHint ?? '输出到源文件同目录'}
                 </span>
                 <button
                   type="button"

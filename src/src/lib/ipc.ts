@@ -460,6 +460,21 @@ export async function pickInstallDir(): Promise<string | null> {
   return typeof picked === 'string' ? picked : null
 }
 
+/**
+ * 选择一个目录作为**默认输出位置**（扒出的 .mid 落在哪）。
+ *
+ * 与 pickInstallDir 实现同形，但语义独立、故不合并：一个是「5.4GB 引擎放哪」，
+ * 一个是「几百 KB 的 MIDI 放哪」。将来任一方的选择器约束变了
+ *（比如输出目录要排除只读盘），合并会让另一方被无辜牵连。
+ * 返回 null 表示用户取消。
+ */
+export async function pickOutputDir(): Promise<string | null> {
+  if (!inTauri()) return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const picked = await open({ directory: true, multiple: false })
+  return typeof picked === 'string' ? picked : null
+}
+
 export async function cancelInstall(taskId: string): Promise<void> {
   if (!inTauri()) return
   return invoke<void>('cancel_transcribe', { taskId })

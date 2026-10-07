@@ -13,6 +13,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import * as ipc from '../lib/ipc'
 import { basename, stripExt } from '../lib/format'
+import {
+  getDefaultOutputDir,
+  joinOutputPath,
+  useDefaultOutputDir,
+} from '../lib/output-store'
 import type {
   EnvInfo,
   ModeInfo,
@@ -45,6 +50,21 @@ export function useWorkspace(config: WorkspaceConfig) {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const task = useTranscribeTask()
+
+  /** 设置页配的默认输出目录（`''` = 未设，走「与源音频同目录」） */
+  const defaultDir = useDefaultOutputDir()
+
+  /**
+   * 界面底部那句「将输出到 …」。
+   * 返回 `null` = 没有特定落点，调用方显示「输出到源文件同目录」。
+   */
+  const outputHint = useMemo(() => {
+    if (outputPath) return basename(outputPath)
+    const first = files[0]
+    if (!first) return null
+    const name = `${stripExt(first.name)}.mid`
+    return defaultDir ? joinOutputPath(defaultDir, name) : null
+  }, [outputPath, files, defaultDir])
 
   const pageModes = useMemo(
     () => modes.filter((m) => m.page === config.page),
@@ -128,7 +148,17 @@ export function useWorkspace(config: WorkspaceConfig) {
       device: 'auto',
       demucsModel: 'htdemucs',
     }
-    if (outputPath) req.outputPath = outputPath
+    // 输出位置三档优先级：
+    //   1. 本页「另存为」指定过 → 用它（单次覆盖，不动全局设置）
+    //   2. 设置页配了默认输出目录 → 目录 + 与源音频同名的 .mid
+    //   3. 都没有 → 不传，由引擎放在源音频同目录
+    // 第 2 档必须**当场读**而非读 hook 值：用户可能在设置页刚改完就切回来提交。
+    if (outputPath) {
+      req.outputPath = outputPath
+    } else {
+      const dir = getDefaultOutputDir()
+      if (dir) req.outputPath = joinOutputPath(dir, `${stripExt(files[0].name)}.mid`)
+    }
     // 人声 + 伴奏直入时明确轨名顺序：[人声, 伴奏]
     if (mode === 'pre_separated') req.trackNames = ['Voice', 'Accompaniment']
     // 多轨直扒放了多个文件时逐轨编号，否则 N 条轨会同名「Instrument」，
@@ -194,6 +224,7 @@ export function useWorkspace(config: WorkspaceConfig) {
     files,
     params,
     outputPath,
+    outputHint,
     needsTwoSlots,
     isBasicMulti,
     maxFiles,
@@ -233,11 +264,4 @@ export function separationLabel(method: string | null): string | null {
 /** 探测失败时的兜底展示（正常路径由 DropZone 处理） */
 export function probeMessage(r: ProbeResult | null): string {
   return r?.ok === false ? '该文件无法读取' : ''
-}
-
-/** 输出文件名的预览（未手动指定时按引擎默认推导） */
-export function previewOutput(files: DroppedFile[], outputPath: string): string | null {
-  if (outputPath) return basename(outputPath)
-  if (files.length === 0) return null
-  return `${stripExt(files[0].name)}.mid`
 }

@@ -23,7 +23,7 @@ import { ProgressPanel } from '../components/ProgressPanel'
 import { ResultCard } from '../components/ResultCard'
 import { Section } from '../components/Section'
 import type { ModeInfo } from '../lib/types'
-import { previewOutput, separationLabel, useWorkspace } from '../lib/useWorkspace'
+import { separationLabel, useWorkspace } from '../lib/useWorkspace'
 
 export function BasicTranscribe() {
   // 默认落在「单轨直扒（人声旋律）」——主上的主场景是把分好的人声出成单轨小提琴谱。
@@ -211,7 +211,7 @@ export function BasicTranscribe() {
               <div className="mt-3 flex items-center gap-2 rounded-[var(--r-sm)] border border-line px-3 py-2">
                 <Save size={12} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
                 <span className="num min-w-0 flex-1 truncate text-[11px] text-ink-faint">
-                  {previewOutput(ws.files, ws.outputPath) ?? '输出到源文件同目录'}
+                  {ws.outputHint ?? '输出到源文件同目录'}
                 </span>
                 <button
                   type="button"

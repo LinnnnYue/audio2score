@@ -44,10 +44,12 @@ import {
   onInstallLog,
   onInstallProgress,
   pickInstallDir,
+  pickOutputDir,
   revealInFolder,
   type EngineStatus,
 } from '../lib/ipc'
 import { DOCS_URL, GITHUB_URL, openExternal, SITE_URL } from '../lib/links'
+import { setDefaultOutputDir, useDefaultOutputDir } from '../lib/output-store'
 
 type MovePhase = 'idle' | 'confirm' | 'moving' | 'done' | 'failed'
 
@@ -90,6 +92,9 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
   /** 「帮助与关于」唤起浏览器失败时的提示（附链接原文，便于手动复制） */
   const [helpNote, setHelpNote] = useState('')
   const logRef = useRef<HTMLDivElement>(null)
+
+  /** 默认输出目录（`''` = 未设，走「与源音频同目录」） */
+  const outputDir = useDefaultOutputDir()
 
   const ready = status?.ready ?? false
   const engineDir = status?.engineDir ?? ''
@@ -155,6 +160,20 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
       setNote(String(e))
     }
   }, [])
+
+  /** 选一个目录作为默认输出位置。取消则保持原样。 */
+  const chooseOutputDir = useCallback(async () => {
+    setNote('')
+    try {
+      const picked = await pickOutputDir()
+      if (picked) setDefaultOutputDir(picked)
+    } catch (e) {
+      setNote(String(e))
+    }
+  }, [])
+
+  /** 恢复默认输出位置（与源音频同目录）。 */
+  const resetOutputDir = useCallback(() => setDefaultOutputDir(''), [])
 
   const startMove = useCallback(async () => {
     if (!targetDir) return
@@ -496,9 +515,53 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
           )}
         </Section>
 
-        {/* ═══════════════ 03 功能档位 ═══════════════ */}
+        {/* ═══════════════ 03 输出位置 ═══════════════ */}
         <Section
           index="03"
+          title="输出位置"
+          aside={
+            <span className="text-[10.5px] text-ink-faint">
+              {outputDir ? '已自定义' : '默认 · 与源音频同目录'}
+            </span>
+          }
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[11.5px] text-ink"
+              title={outputDir || '与源音频同目录'}
+            >
+              {outputDir || '与源音频同目录（默认）'}
+            </div>
+            <button
+              type="button"
+              onClick={() => void chooseOutputDir()}
+              disabled={busy}
+              className="btn shrink-0"
+            >
+              <FolderOpen size={13} strokeWidth={2.1} />
+              选择目录
+            </button>
+            {outputDir !== '' && (
+              <button
+                type="button"
+                onClick={resetOutputDir}
+                disabled={busy}
+                className="btn btn-ghost shrink-0"
+              >
+                恢复默认
+              </button>
+            )}
+          </div>
+          <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-dim">
+            扒出的 <span className="text-ink">.mid</span> 会固定放进这里，文件名与源音频一致。
+            不设置时与源音频放在同一目录 —— 音频在哪，谱就在哪。
+            单个任务里点<span className="text-ink">「另存为」</span>可临时改到别处，不改动这里。
+          </p>
+        </Section>
+
+        {/* ═══════════════ 04 功能档位 ═══════════════ */}
+        <Section
+          index="04"
           title="功能档位"
           aside={
             <span className="text-[10.5px] text-ink-faint">
@@ -542,9 +605,9 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
           </div>
         </Section>
 
-        {/* ═══════════════ 04 使用指引 ═══════════════ */}
+        {/* ═══════════════ 05 使用指引 ═══════════════ */}
         <Section
-          index="04"
+          index="05"
           title="使用指引"
           aside={<span className="text-[10.5px] text-ink-faint">命令行 · AI 助手</span>}
         >
@@ -563,9 +626,9 @@ export function SettingsPage({ status, onUpgrade, onRefresh, onShowGuide }: Prop
           </div>
         </Section>
 
-        {/* ═══════════════ 05 帮助与关于 ═══════════════ */}
+        {/* ═══════════════ 06 帮助与关于 ═══════════════ */}
         <Section
-          index="05"
+          index="06"
           title="帮助与关于"
           aside={<span className="text-[10.5px] text-ink-faint">用浏览器打开</span>}
         >
