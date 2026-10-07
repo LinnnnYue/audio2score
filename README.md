@@ -1,12 +1,19 @@
+<div align="center">
+
+<img src="src-tauri/icons/icon.png" width="134" alt="扒谱助手图标">
+
 # 扒谱助手 · audio2score
 
-> 把音频自动转成乐谱的桌面应用 —— 拖进去、选模式、点按钮，得到 **MuseScore 可直接打开编辑的 MIDI**。
+**把音频变成能编辑、能打印的乐谱。**
+拖进去 → 选模式 → 点按钮，得到 **MuseScore 可直接打开的 MIDI**。
 
-![version](https://img.shields.io/badge/version-0.1.2-blue)
-![platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)
-![license](https://img.shields.io/badge/license-%E4%BB%85%E4%BE%9B%E5%AD%A6%E4%B9%A0%E7%A0%94%E7%A9%B6-orange)
+[![版本](https://img.shields.io/github/v/release/LinnnnYue/audio2score?label=version&color=2ea043)](https://github.com/LinnnnYue/audio2score/releases)
+![平台](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-lightgrey)
+![许可](https://img.shields.io/badge/license-%E4%BB%85%E4%BE%9B%E5%AD%A6%E4%B9%A0%E7%A0%94%E7%A9%B6-orange)
 
-![应用图标](docs/icon-preview.png)
+[官网](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd) · [说明文档](https://workbuddy.link/p/Q4EtYgaEhSHmEgOUWXS1sQ) · [下载](https://github.com/LinnnnYue/audio2score/releases/latest)
+
+</div>
 
 ---
 
@@ -22,6 +29,54 @@
 
 ---
 
+## 快速开始
+
+1. 到 **[Releases](https://github.com/LinnnnYue/audio2score/releases)** 下载最新安装包（形如 `audio2score_x.x.x_x64-setup.exe`）。
+2. 安装并首次启动。应用会引导你**联网安装扒谱引擎**（引擎体积大，不随安装包分发）。
+3. 选择安装档位（见 [引擎安装档位](#引擎安装档位)），等待完成。
+4. 拖入音频 → 选模式 → 点「开始」→ 得到 `.mid`。
+
+> 想先试试水，装 `basic` 档就能跑；确认要分离人声/伴奏，再升级到 `full`。
+
+---
+
+## 扒完之后怎么看谱？—— 配一个 MuseScore
+
+**这是新手最容易卡住的一步，所以放在前面说。**
+
+扒谱助手输出的是 **MIDI（`.mid`）**。它是一份「音符清单」——只记录音高、时长、力度，
+里面**没有五线谱排版，也不能直接打印**。要"看谱、改谱、导出 PDF"，需要一个免费的制谱软件：
+**[MuseScore](https://musescore.org/zh-hans/download)**（开源免费，Windows / macOS / Linux 都有）。
+
+<div align="center">
+
+### ➡️ [下载 MuseScore 4（官方 · 免费）](https://musescore.org/zh-hans/download)
+
+</div>
+
+四步走完，你就能拿到一份 PDF 谱子：
+
+| 步骤 | 做什么 | 怎么做 |
+|---|---|---|
+| **1** | 装好 MuseScore 4 | 从上面的传送门下载安装，一路默认即可 |
+| **2** | 打开扒出的 `.mid` | 扒完在结果卡里点<kbd>用 MuseScore 打开</kbd>；或先记下文件位置，手动在 MuseScore 里 <kbd>文件</kbd> → <kbd>打开</kbd> 选它 |
+| **3** | 先看一眼，再动手改 | 确认 **BPM 是真实速度**（不对的话小节线会整体错位）；哪个音符不合适就在谱面上直接改 |
+| **4** | 导出 PDF | <kbd>文件</kbd> → <kbd>导出</kbd> → 格式选 **PDF** |
+
+> 📖 **更细的分步图解**（谱面怎么读、每个按钮在哪、常见报错怎么办）见 **[说明文档 · §07 拿到 MIDI 之后](https://workbuddy.link/p/Q4EtYgaEhSHmEgOUWXS1sQ#s7)**。
+
+### 扒出来的文件放在哪？
+
+默认与源音频放在**同一目录**——音频在哪，谱就在哪。
+
+想让它固定落到某个文件夹（比如专门的「曲谱」盘）：
+
+**设置 → 输出位置 → 选择目录** —— 设一次，之后每首的 `.mid` 都会放进那里，文件名与源音频一致。
+
+单个任务里也可以点底部的「另存为」临时改到别处，不会改动上面的默认设置。
+
+---
+
 ## 功能
 
 | 能力 | 说明 |
@@ -31,20 +86,16 @@
 | **六条扒谱路径** | 全自动双轨 · 只扒伴奏 · 只扒人声旋律 · 基本扒谱（单/多音轨）· 已分离音频直入 |
 | **主流格式通吃** | mp3 / wav / flac / ogg / opus / aiff 原生支持；m4a / aac / wma 等经 ffmpeg 转码兜底，失败给明确中文原因而非堆栈 |
 | **过程可见** | 分离 / 频谱分析 / 音符追踪 / 生成 MIDI 四阶段进度 + 百分比 + 实时日志 |
+| **输出位置可设** | 默认与源音频同目录；也可指定固定目录，之后每首都落在那里 |
 | **MuseScore 可用** | 导出的 `.mid` 轨名正确（人声 / 伴奏 / 乐器名）、program 合理、tempo 正确 |
 | **多入口同源** | GUI / CLI / MCP 三种接法共用同一套引擎核心，行为完全一致 |
 | **四套视觉** | 霜蓝玻璃 / 暗房琥珀 / 深海声谱 / 素纸墨青，运行时热切换 |
 
 ---
 
-## 快速开始（普通用户）
+## 引擎安装档位
 
-1. 到 **[Releases](https://github.com/LinnnnYue/audio2score/releases)** 下载最新版安装包（形如 `audio2score_x.x.x_x64-setup.exe`）。
-2. 安装并首次启动。应用会引导你**联网安装扒谱引擎**（引擎体积大，不随安装包分发）。
-3. 选择安装档位（见下表），等待完成。
-4. 拖入音频 → 选模式 → 点击开始 → 得到 `.mid`。
-
-### 引擎安装档位
+引擎不随安装包分发，首次启动时联网安装。三档可选：
 
 | 档位 | 内容 | 体积 | 耗时 | 适用 |
 |---|---|---|---|---|
@@ -52,8 +103,8 @@
 | `full`（默认，推荐） | basic + torch(cu124) + demucs | 约 5.2 GB | 10–25 分钟 | 完整功能（分离人声 / 伴奏） |
 | `mcp` | full + MCP SDK | 约 5.2 GB | +10 秒 | 额外提供 MCP 服务端 |
 
-> 想先试水，装 `basic` 即可；确认要分离人声/伴奏再升级到 `full`。
 > 下载走国内镜像择优（镜像与版本约束在安装前会校验），无需自备网络工具。
+> 引擎默认装在 `%LOCALAPPDATA%`，若 C 盘吃紧，可在设置页把它整体迁到别的盘。
 
 ---
 
@@ -88,12 +139,23 @@ npm run tauri:build
 > **不要用 `cargo build`** —— 它跳过前端构建，打出的包会白屏。
 > 交付一律走 `npm run tauri:build`。
 
+### 图标
+
+图标由 `src-tauri/icons/source/*.svg` 栅格化而来（六边形 + 双八分音符，青 `#6fe3ff` → 紫 `#a99cff`）。
+改图标只动 SVG，然后：
+
+```bash
+python engine/tools/make_icons.py          # 重新生成全套 PNG / ICO
+python engine/tools/make_icon_preview.py   # 顺带刷新 docs/icon-preview.png
+```
+
+小尺寸（16 / 24 / 32px）走单独的加粗版 `icon-small.svg`——母版的细线缩到 16px 会糊。
+
 ### 可选：构建期注入诊断上报凭证
 
 应用内置的故障诊断上报是**可选**能力。若你在自己构建时需要它，在构建前设置环境变量即可，源码中不含任何凭证：
 
-```bash
-# PowerShell
+```powershell
 $env:BAPU_REPORT_TOKEN = "你的 PushPlus token"
 npm run tauri:build
 ```
@@ -159,6 +221,7 @@ python engine/mcp_server.py
 │  ├─ 功能页 + 四方向主题层（CSS 变量驱动热切换）
 │  └─ Tauri command / event 通道
 ├─ src-tauri/           Rust 壳：无边框窗口、文件对话框、目录揭示、sidecar 生命周期
+│  └─ icons/source/     图标真源 SVG（生成脚本消费它）
 ├─ engine/              Python 引擎
 │  ├─ bridge.py         适配层：参数映射 / 阶段进度上报 / 轨道编排 / 错误中文化
 │  ├─ pipeline.py       六条产品路径的编排实现
@@ -166,7 +229,7 @@ python engine/mcp_server.py
 │  ├─ cli.py            命令行入口
 │  └─ mcp_server.py     MCP 服务端
 ├─ mcp/                 MCP 配置模板
-├─ docs/                设计文档与图标
+├─ docs/                设计文档与图标预览
 └─ third_party/         上游 AutoTranscriber 只读快照（需自行放置，不入库）
 ```
 
@@ -184,7 +247,7 @@ python engine/mcp_server.py
 ## 已知取舍与限制
 
 - **引擎不随包分发**。完整档引擎实测约 5.1 GB（torch 一家占 4.4 GB），打进安装包不现实，故改为首次运行联网引导安装。
-- **输出为 MIDI**。MuseScore 打开 `.mid` 会落在导入总谱视图，不如原生 `.musicxml` 的分谱表体验精细 —— 这是已知的取舍。
+- **输出为 MIDI，不是 MusicXML**。MuseScore 打开 `.mid` 会落在导入总谱视图，不如原生 `.musicxml` 的分谱表体验精细 —— 这是已知的取舍。
 - **进度百分比为估算值**。上游无回调机制，进度由 stdout 逐行解析 + 阶段推断得到，非精确值。
 - **人声音高检测**优先用 CREPE（深度学习，更准），不可用时降级到 pYIN，界面会提示当前所用算法。
 - **仅 Windows x64** 提供预编译包。
@@ -205,8 +268,13 @@ python engine/mcp_server.py
 ## 致谢
 
 - **[AutoTranscriber](https://github.com/GuyueHermit/AutoTranscriber)**（作者 GuyueHermit）—— 本项目的扒谱内核，人声分离、多音高估计与 MIDI 导出能力均来自上游。
+- **[MuseScore](https://musescore.org/)** —— 免费开源的制谱软件，也是本项目的推荐下游工具。
 - 以及 [librosa](https://librosa.org/)、[Demucs](https://github.com/facebookresearch/demucs)、[pretty_midi](https://github.com/craffel/pretty-midi)、[Tauri](https://tauri.app/) 等开源项目。
 
 ---
 
-<p align="center">如果这个工具对你有帮助，欢迎通过 <a href="https://afdian.com/a/LinnYue">爱发电</a> 支持作者 ☕</p>
+<div align="center">
+
+如果这个工具对你有帮助，欢迎通过 [爱发电](https://afdian.com/a/LinnYue) 支持作者 ☕
+
+</div>
