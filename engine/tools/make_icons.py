@@ -1,224 +1,210 @@
 """
-make_icons.py — 生成应用图标全套
+make_icons.py — 从 SVG 母版生成应用图标全套
 
-## 设计意图（2026-10-04 重做）
-主上验收：「感觉有点暗暗丑丑的」。
+## 为什么改成 SVG 驱动（2026-10-07）
+主上验收官网图标后发话：「官网的图标设计的很不错，比软件图标好看，
+可以全权替换软件的所有图标包括小图标了」。
 
-旧方案是深海声谱（Abyss）——深靛底 + 青绿柱。问题不在配色本身，
-而在**图标不是主题预览**：桌面图标常年躺在任务栏与开始菜单里，
-底色比应用内背景更暗、更闷，在缩略图上几乎糊成一坨深色方块。
-且默认主题已改为霜蓝玻璃（frost，浅色），图标却还是深底的，两者不搭。
+旧方案（霜蓝玻璃 · 浅霜蓝底 + 深钢蓝频谱柱）是 PIL 手绘的：
+改一个圆角半径要动代码、改一次配色要重算三段渐变。新方案改用 SVG 母版，
+形状与官网图标同源（六边形 + 双八分音符，青 #6fe3ff → 紫 #a99cff），
+在矢量层面可读可改，栅格化交给 `tauri icon`（项目自带的官方工具）。
 
-新方案：**霜蓝玻璃 · 亮调**。
-  · 底：浅霜蓝垂直渐变（#F5FAFD → #A6C7DE），自带玻璃高光与内描边
-  · 主体：5 根圆角柱（音频包络），深钢蓝上浅下深渐变，中柱加亮做焦点
-  · 谱线：柱下一道半透明横线，把「频谱」锚成「谱面」
-亮底 + 深柱的组合在两个方向上都站得住：深色任务栏里亮底醒目，
-浅色任务栏里深柱清晰 —— 恒定轮廓，不挑配色。
+## 母版
+  src-tauri/icons/source/icon.svg        —— 主母版（48px 起使用）
+  src-tauri/icons/source/icon-small.svg  —— 小尺寸版（16/24/32px 帧，图案放大 + 线加粗）
+  src-tauri/icons/source/favicon.svg     —— 前端标签页图标（本脚本顺带同步）
 
-红线依旧：不用品红，不用纯黑（底为浅蓝白，柱为深钢蓝）。
+## 为什么要给小尺寸单独一版
+线宽是相对量。主母版在 1024 画布上线宽 2.4，缩到 16px 只剩 0.7px ——
+糊成一团。小尺寸版把图案放大到约 92%、线宽加到 3.6，16px 下线宽约 1.7px，
+六边形与符头都还认得出来。Windows 任务栏/开始菜单常用的正是 24–32px。
 
 ## 输出
-Tauri 2 要求 `src-tauri/icons/icon.ico` 存在（Windows 资源嵌入），
-同时需要 32/128/256/512 的 PNG 供各平台使用。本脚本一次生成全套。
+  src-tauri/icons/  全套 PNG + icon.ico（7 档：16/24/32 小尺寸版，48/64/128/256 主母版）
 
 用法：python engine/tools/make_icons.py
+前置：src-tauri 下可执行 npx tauri（项目 node_modules 自带 @tauri-apps/cli）
 """
 
 from __future__ import annotations
 
+import io
 import os
-from PIL import Image, ImageDraw, ImageStat
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
 
-# 与 theme/themes.ts 的 frost（霜蓝玻璃）方向保持一致
-BG_TOP = (245, 250, 253)      # #F5FAFD 顶光
-BG_MID = (214, 231, 242)      # #D6E7F2
-BG_BOTTOM = (166, 199, 222)   # #A6C7DE 底影
-BAR_TOP = (60, 147, 192)      # #3C93C0
-BAR_BOTTOM = (23, 88, 126)    # #17587E
-BAR_FOCUS_TOP = (82, 168, 212)  # #52A8D4 中柱加亮
-BAR_FOCUS_BOTTOM = (31, 111, 156)  # #1F6F9C
-BASELINE = (31, 111, 156)
+from PIL import Image
 
-# 音频包络：中间高、两侧低
-HEIGHTS = [0.36, 0.62, 1.0, 0.70, 0.42]
+# ── 尺寸规划 ────────────────────────────────────────────────
+ICO_SMALL = (16, 24, 32)      # 走 icon-small.svg
+ICO_LARGE = (48, 64, 128, 256)  # 走 icon.svg
 
-
-def _lerp(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))  # type: ignore[return-value]
-
-
-def _bg_color(t: float) -> tuple[int, int, int]:
-    """三段式底色渐变：顶部更亮的区间更长，读起来像顶光落在玻璃上。"""
-    if t < 0.55:
-        return _lerp(BG_TOP, BG_MID, t / 0.55)
-    return _lerp(BG_MID, BG_BOTTOM, (t - 0.55) / 0.45)
+# PNG 组：各平台用，一律取主母版的精确栅格
+PNG_MAP = {
+    "32x32.png": "32x32.png",
+    "128x128.png": "128x128.png",
+    "128x128@2x.png": "128x128@2x.png",
+    "256x256.png": "128x128@2x.png",
+    "512x512.png": "icon.png",
+    "icon.png": "icon.png",
+}
 
 
-def draw_icon(size: int) -> Image.Image:
-    """画一枚 size×size 的图标。"""
-    # 超采样后缩放，边缘更干净。大尺寸用 2 倍即可 ——
-    # 1024 用 4 倍会造出 4096² 的画布，逐行涂渐变要几秒，收益却看不出来。
-    ss = size * (4 if size <= 128 else 2)
-    img = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
+def render_svg(svg: str, out_dir: str, cwd: str) -> None:
+    """调用项目自带的 tauri icon 把 SVG 栅格化成全套。
 
-    radius = int(ss * 0.235)
-    mask = Image.new("L", (ss, ss), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, ss - 1, ss - 1], radius=radius, fill=255)
+    走 `cmd /c` + 参数列表：既避免 shell 引号拼接，又让中文路径经由
+    Windows 宽字符 API 传递（此前的项目路径里带空格与中文）。
+    """
+    exe = ["cmd", "/c", "npx"] if os.name == "nt" else ["npx"]
+    cmd = exe + ["tauri", "icon", svg, "-o", out_dir]
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True)
+    if r.returncode != 0:
+        out = (r.stdout or b"").decode("utf-8", "replace")
+        err = (r.stderr or b"").decode("utf-8", "replace")
+        raise SystemExit(f"tauri icon 失败（{os.path.basename(svg)}）：\n{out}\n{err}")
 
-    # ── 1) 底色渐变（画在独立图层上，再用圆角 mask 贴回）──
-    #
-    # ⚠️ 绝不能直接往主图逐行涂渐变。踩坑实录：初版（含旧版脚本）是
-    # 「先 rounded_rectangle 填底，再 for y: d.line([(0,y),(ss,y)])」——
-    # 逐行线**横贯整个画布**，把四角已经挖掉的圆角又填了回来。
-    # 体检时一眼看见：四角 alpha 全是 255。等于交付一个直角方块，
-    # Windows 任务栏上就是块硬邦邦的深色砖头 —— 主上说的「暗暗丑丑」。
-    grad = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(grad)
-    for y in range(ss):
-        gd.line([(0, y), (ss, y)], fill=_bg_color(y / max(1, ss - 1)) + (255,))
-    img = Image.composite(grad, Image.new("RGBA", (ss, ss), (0, 0, 0, 0)), mask)
 
-    # ── 2) 玻璃光泽：上半部叠一层白色透明渐变（同样裁进圆角）──
-    gloss = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
-    gl = ImageDraw.Draw(gloss)
-    span = int(ss * 0.52)
-    for y in range(span):
-        a = int(78 * (1 - y / span) ** 1.7)
-        if a:
-            gl.line([(0, y), (ss, y)], fill=(255, 255, 255, a))
-    img = Image.alpha_composite(
-        img,
-        Image.composite(gloss, Image.new("RGBA", (ss, ss), (0, 0, 0, 0)), mask),
-    )
-    d = ImageDraw.Draw(img)
+def pack_ico(frames: list[tuple[int, Image.Image]], out_path: str) -> None:
+    """写出多帧 ICO（PNG 压缩帧，Win10/11 原生支持）。
 
-    # ── 3) 内描边：顶部提亮、底部压暗，玻璃的厚度感全在这一圈 ──
-    inset = max(1, int(ss * 0.011))
-    d.rounded_rectangle(
-        [inset, inset, ss - 1 - inset, ss - 1 - inset],
-        radius=max(2, radius - inset),
-        outline=(255, 255, 255, 150),
-        width=max(1, int(ss * 0.009)),
-    )
+    自己拼而不用 PIL 的 ICO 编码器，是因为需要**每档用不同的源图**：
+    PIL 只能拿一张基础图按 sizes 缩放，做不到「16px 用加粗版、256px 用精致版」。
 
-    # ── 4) 频谱柱：垂直居中于画布 ──
-    n = len(HEIGHTS)
-    margin = ss * 0.215
-    usable = ss - margin * 2
-    gap = ss * 0.055
-    bar_w = (usable - gap * (n - 1)) / n
-    max_h = ss * 0.60
-    # 让「最高柱 + 基线」这一组在画布上垂直居中：base = 中心 + 最高柱高的一半
-    base_y = ss * 0.5 + max_h * 0.5
+    ICO 结构：ICONDIR(6B) + ICONDIRENTRY(16B × n) + 各帧数据
+    """
+    blobs: list[bytes] = []
+    for _, im in frames:
+        buf = io.BytesIO()
+        im.convert("RGBA").save(buf, format="PNG", optimize=True)
+        blobs.append(buf.getvalue())
 
-    for i, hf in enumerate(HEIGHTS):
-        x0 = margin + i * (bar_w + gap)
-        h = max_h * hf
-        y0 = base_y - h
-        focused = i == n // 2
-        top = BAR_FOCUS_TOP if focused else BAR_TOP
-        bottom = BAR_FOCUS_BOTTOM if focused else BAR_BOTTOM
-        bar = Image.new("RGBA", (max(1, int(bar_w)), max(1, int(h))), (0, 0, 0, 0))
-        bd = ImageDraw.Draw(bar)
-        bh = bar.height
-        for y in range(bh):
-            c = _lerp(top, bottom, y / max(1, bh - 1))
-            bd.line([(0, y), (bar.width, y)], fill=c + (255,))
-        r = int(bar_w * 0.45)
-        bmask = Image.new("L", bar.size, 0)
-        ImageDraw.Draw(bmask).rounded_rectangle(
-            [0, 0, bar.width - 1, bar.height - 1], radius=r, fill=255
-        )
-        img.paste(bar, (int(x0), int(y0)), bmask)
+    n = len(frames)
+    head = struct.pack("<HHH", 0, 1, n)
+    offset = 6 + 16 * n
+    entries = b""
+    for (size, _), blob in zip(frames, blobs):
+        b = 0 if size >= 256 else size
+        entries += struct.pack("<BBBBHHII", b, b, 0, 0, 1, 32, len(blob), offset)
+        offset += len(blob)
 
-    # ── 5) 谱线：柱下一道半透明横线，把频谱锚成「谱面」 ──
-    ly = base_y + ss * 0.035
-    lw = max(1, int(ss * 0.022))
-    d.rounded_rectangle(
-        [margin - ss * 0.02, ly, ss - margin + ss * 0.02, ly + lw],
-        radius=lw // 2,
-        fill=BASELINE + (72,),
-    )
-
-    return img.resize((size, size), Image.LANCZOS)
+    with open(out_path, "wb") as f:
+        f.write(head + entries + b"".join(blobs))
 
 
 def main() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
-    # engine/tools → 项目根
-    root = os.path.dirname(os.path.dirname(here))
-    out_dir = os.path.join(root, "src-tauri", "icons")
-    os.makedirs(out_dir, exist_ok=True)
+    root = os.path.dirname(os.path.dirname(here))          # engine/tools → 项目根
+    tauri = os.path.join(root, "src-tauri")
+    src_dir = os.path.join(tauri, "icons", "source")
+    out_dir = os.path.join(tauri, "icons")
 
-    master = draw_icon(1024)
-    master.save(os.path.join(out_dir, "icon.png"))
+    icon_svg = os.path.join(src_dir, "icon.svg")
+    small_svg = os.path.join(src_dir, "icon-small.svg")
+    for p in (icon_svg, small_svg):
+        if not os.path.isfile(p):
+            raise SystemExit(f"找不到图标母版：{p}")
 
-    for size in (32, 128, 256, 512):
-        draw_icon(size).save(os.path.join(out_dir, f"{size}x{size}.png"))
-        if size == 256:
-            draw_icon(size).save(os.path.join(out_dir, "128x128@2x.png"))
-        if size == 512:
-            draw_icon(size).save(os.path.join(out_dir, "icon.png"))
+    tmp = tempfile.mkdtemp(prefix="a2s-icons-")
+    try:
+        big_dir = os.path.join(tmp, "big")
+        small_dir = os.path.join(tmp, "small")
+        render_svg(icon_svg, big_dir, tauri)
+        render_svg(small_svg, small_dir, tauri)
 
-    # ── Windows 资源需要的 .ico（多尺寸合一）──
-    #
-    # ⚠️ 必须以**大图**为基础保存，`sizes=` 才会真正产出各档。
-    # 踩坑实录：初版写成
-    #     frames = [draw_icon(s) for s in ico_sizes]   # frames[0] 只有 16×16
-    #     frames[0].save("icon.ico", sizes=[...], append_images=frames[1:])
-    # 结果 icon.ico **只有 16×16 一档**（527 字节）。PIL 的 ICO 编码器是在
-    # 基础图上按 `sizes` 缩放，基础图比目标小就放弃那一档；`append_images`
-    # 在这里并不被当作「现成的帧」使用。于是 Windows 拿到一个 16×16 的
-    # 图标资源，任务栏/开始菜单把它放大显示 —— 看起来就是「糊、暗、丑」。
-    # 主上两轮反馈的「感觉有点暗暗丑丑的」，配色只占一半，另一半是这个。
-    ico_sizes = [16, 32, 48, 64, 128, 256]
-    ico_path = os.path.join(out_dir, "icon.ico")
-    master.save(ico_path, format="ICO", sizes=[(s, s) for s in ico_sizes])
+        os.makedirs(out_dir, exist_ok=True)
 
-    # ── 自检：ico 真的含全部尺寸吗 ──
-    # 不校验就会静默交付一个只有小图标的 exe —— 这类「看起来没问题」的产物
-    # 正是最难被发现的失败。宁可在这里中止。
-    with Image.open(ico_path) as ico:
-        got = sorted(ico.info.get("sizes") or [])
-    want = [(s, s) for s in ico_sizes]
-    if got != want:
-        raise SystemExit(f"icon.ico 尺寸不完整：期望 {want}，实际 {got}")
+        # ── 1) PNG 组 ──
+        for dst, src in PNG_MAP.items():
+            shutil.copyfile(os.path.join(big_dir, src), os.path.join(out_dir, dst))
 
-    # ── 自检 2：四角必须透明 ──
-    # 圆角一旦被渐变抹平，交出去就是个直角方块。这条断言就是为它设的。
-    with Image.open(os.path.join(out_dir, "256x256.png")) as png:
-        rgba = png.convert("RGBA")
-        w, h = rgba.size
-        corners = [rgba.getpixel(p)[3] for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
-    if any(a > 8 for a in corners):
-        raise SystemExit(f"四角未透明（alpha={corners}）：渐变把圆角填平了")
+        master = Image.open(os.path.join(out_dir, "icon.png")).convert("RGBA")
+        small_master = Image.open(os.path.join(small_dir, "icon.png")).convert("RGBA")
 
-    # ── 自检 3：必须是亮调，且缩到 16px 仍分得清柱子 ──
-    # 主上的原始抱怨就是「暗暗丑丑的」。用数字守住，不靠肉眼。
-    with Image.open(os.path.join(out_dir, "icon.png")) as png:
-        full = png.convert("RGBA")
-        w, h = full.size
-        mid = full.crop((int(w * 0.2), int(h * 0.2), int(w * 0.8), int(h * 0.8))).convert("L")
-        # 用 ImageStat 而非 getdata()：后者在 Pillow 14 会被移除
-        mean = ImageStat.Stat(mid).mean[0]
-        tiny = full.resize((16, 16), Image.LANCZOS).convert("L")
-        row = [tiny.getpixel((x, 8)) for x in range(16)]
-        row = [v for v in row if v > 0]
-        spread = max(row) - min(row)
-    if mean < 140:
-        raise SystemExit(f"图标偏暗（中心平均亮度 {mean:.1f} < 140）")
-    if spread < 60:
-        raise SystemExit(f"16px 下柱体对比不足（极差 {spread} < 60），会糊成一团")
+        # ── 2) ICO：小尺寸加粗版 + 大尺寸精致版 ──
+        # 32px 直接用 tauri 的精确栅格；16/24 没有现成帧，从 512 缩放。
+        large_src = {
+            48: "64x64.png",
+            64: "64x64.png",
+            128: "128x128.png",
+            256: "128x128@2x.png",
+        }
+        frames: list[tuple[int, Image.Image]] = []
+        for s in ICO_SMALL:
+            if s == 32:
+                im = Image.open(os.path.join(small_dir, "32x32.png")).convert("RGBA")
+            else:
+                im = small_master.resize((s, s), Image.LANCZOS)
+            frames.append((s, im))
+        for s in ICO_LARGE:
+            im = Image.open(os.path.join(big_dir, large_src[s])).convert("RGBA")
+            frames.append((s, im.resize((s, s), Image.LANCZOS)))
+
+        ico_path = os.path.join(out_dir, "icon.ico")
+        pack_ico(frames, ico_path)
+
+        # ── 自检 1：ico 必须含全部档位 ──
+        # 不校验就会静默交付一个只有 16×16 的 exe（本项目真踩过）——
+        # Windows 把那张小图放大显示，看起来就是「糊、暗、丑」。
+        got = sorted(s for s, _ in frames)
+        want = sorted(ICO_SMALL + ICO_LARGE)
+        if got != want:
+            raise SystemExit(f"icon.ico 档位不完整：期望 {want}，实际 {got}")
+
+        # ── 自检 2：四角必须透明 ──
+        # 渐变一旦被逐行涂满整个画布，圆角就被填平，交出去是个直角砖头。
+        with Image.open(os.path.join(out_dir, "256x256.png")) as png:
+            rgba = png.convert("RGBA")
+            w, h = rgba.size
+            corners = [rgba.getpixel(p)[3] for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
+        if any(a > 8 for a in corners):
+            raise SystemExit(f"四角未透明（alpha={corners}）：圆角被填平了")
+
+        # ── 自检 3：小尺寸下认得出来 + 底板不得是纯黑 ──
+        #
+        # 旧版这里守的是「中心平均亮度 ≥ 140」（当时是亮底方案，主上反馈过
+        # 「暗暗丑丑的」）。2026-10-07 换成官网的深墨底方案后，这条判据本身
+        # 失效了 —— 但「小尺寸不能糊」的诉求没变，改守**对比度**：
+        # 深底上的青色线条与底色亮度差必须足够大，16px 才立得住。
+        with Image.open(ico_path) as ico:
+            ico.size = (16, 16)
+            tiny = ico.convert("RGBA")
+        lum = []
+        for x in range(tiny.size[0]):
+            r, g, b, a = tiny.getpixel((x, tiny.size[1] // 2))
+            if a > 40:
+                lum.append(round(0.2126 * r + 0.7152 * g + 0.0722 * b))
+        spread = (max(lum) - min(lum)) if lum else 0
+        if spread < 90:
+            raise SystemExit(f"16px 下明暗对比不足（极差 {spread} < 90），会糊成一团")
+
+        # 红线：禁纯黑。底板取顶部中央（那里一定是底，不会是线条）。
+        r, g, b, a = master.getpixel((master.size[0] // 2, int(master.size[1] * 0.06)))
+        if a > 0 and max(r, g, b) < 6:
+            raise SystemExit(f"底板接近纯黑（#{r:02x}{g:02x}{b:02x}）—— 外观红线禁纯黑")
+
+        # ── 顺带同步前端 favicon（同一份源，避免两处漂移）──
+        fav_src = os.path.join(src_dir, "favicon.svg")
+        fav_dst = os.path.join(root, "src", "public", "favicon.svg")
+        if os.path.isfile(fav_src) and os.path.isdir(os.path.dirname(fav_dst)):
+            shutil.copyfile(fav_src, fav_dst)
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     print(f"图标已生成：{out_dir}")
     for f in sorted(os.listdir(out_dir)):
         p = os.path.join(out_dir, f)
-        print(f"  {f:20s} {os.path.getsize(p) // 1024}KB")
-    print(f"  icon.ico 含尺寸：{got}")
-    print(f"  中心平均亮度 {mean:.1f} / 16px 对比极差 {spread} / 四角透明 ✓")
+        if os.path.isfile(p):
+            print(f"  {f:20s} {os.path.getsize(p) // 1024}KB")
+    print(f"  icon.ico 档位：{got}（16/24/32 加粗版，48+ 精致版）")
+    print(f"  16px 明暗极差 {spread} / 四角透明 ✓ / 底板非纯黑 ✓")
+    print("  favicon 已同步 → src/public/favicon.svg")
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

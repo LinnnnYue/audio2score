@@ -3,7 +3,7 @@ make_icon_preview.py — 生成图标预览对照图
 
 ## 为什么要有它
 图标是唯一「无法靠日志验证」的产物：`icon.ico 33KB` 完全可能是一张
-糊成一坨的方块。数值自检（亮度 / 对比度 / 圆角 alpha）能挡住定量问题，
+糊成一坨的方块。数值自检（对比度 / 圆角 alpha / 档位完整）能挡住定量问题，
 但「好不好看、在小尺寸下认不认得出」只有眼睛能判。
 主上每次验收图标都需要一张能直接看的对照图 —— 与其临时拼，不如固化下来。
 
@@ -11,6 +11,12 @@ make_icon_preview.py — 生成图标预览对照图
   1. 深色任务栏模拟条：16/24/32/48/64 实际像素尺寸并排
   2. 大图：浅底与深底各一枚 256
   3. 透明棋盘格：放大看圆角是否真的透（圆角被渐变填平是本项目踩过的坑）
+
+## 2026-10-07 的两处修正
+  · 小尺寸改为**直接取 icon.ico 里的真实帧**，不再拿主母版缩放。
+    因为 16/24/32 那三档是专门做过光学调整的加粗版 —— 拿主母版缩出来的
+    预览会「比实际交付的更好看」，等于自欺。
+  · 副标题随新设计更新（深墨底 + 青紫渐变，承官网造型）。
 
 用法：python engine/tools/make_icon_preview.py
 输出：docs/icon-preview.png
@@ -26,6 +32,9 @@ FONT_CANDIDATES = [
     r"C:\Windows\Fonts\msyhl.ttc",
     r"C:\Windows\Fonts\simhei.ttf",
 ]
+
+# icon.ico 里有真实帧的档位 —— 这些直接取，别缩放
+ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
 def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -43,11 +52,12 @@ def main() -> None:
     root = os.path.dirname(os.path.dirname(here))
     icons = os.path.join(root, "src-tauri", "icons")
     src = os.path.join(icons, "icon.png")
+    ico_path = os.path.join(icons, "icon.ico")
     if not os.path.isfile(src):
         raise SystemExit("找不到 icon.png，请先运行 make_icons.py")
 
     master = Image.open(src).convert("RGBA")
-    W, H = 900, 640
+    W, H = 900, 660
     canvas = Image.new("RGBA", (W, H), (255, 255, 255, 255))
     d = ImageDraw.Draw(canvas)
 
@@ -56,17 +66,23 @@ def main() -> None:
     f_tiny = _font(11)
 
     d.text((24, 20), "扒谱助手 · 图标预览", font=f_title, fill=(28, 40, 52))
-    d.text((24, 50), "霜蓝玻璃（frost）· 浅霜蓝底 + 深钢蓝频谱柱", font=f_label, fill=(110, 126, 140))
+    d.text((24, 50), "六边形音符 · 深墨底 + 青紫渐变（造型与官网图标同源）", font=f_label, fill=(110, 126, 140))
 
-    def place(sz: int, x: int, y: int) -> Image.Image:
-        r = master.resize((sz, sz), Image.LANCZOS)
-        canvas.alpha_composite(r, (x, y))
-        return r
+    def frame(sz: int) -> Image.Image:
+        """小尺寸取 ico 真实帧，大尺寸从主母版缩放。"""
+        if sz in ICO_SIZES:
+            with Image.open(ico_path) as f:
+                f.size = (sz, sz)
+                return f.convert("RGBA").copy()
+        return master.resize((sz, sz), Image.LANCZOS)
+
+    def place(sz: int, x: int, y: int) -> None:
+        canvas.alpha_composite(frame(sz), (x, y))
 
     # ── 1) 深色任务栏模拟条 ──
     ty = 90
     d.rounded_rectangle([24, ty, W - 24, ty + 78], radius=10, fill=(34, 36, 42, 255))
-    d.text((40, ty + 8), "深色背景（任务栏 / 开始菜单）", font=f_tiny, fill=(150, 158, 170))
+    d.text((40, ty + 8), "深色背景（任务栏 / 开始菜单）· 取 icon.ico 真实帧", font=f_tiny, fill=(150, 158, 170))
     x = 44
     for sz in (16, 24, 32, 48, 64):
         place(sz, x, ty + 26 + (64 - sz) // 2)

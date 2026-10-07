@@ -19,6 +19,7 @@
 | `src/` | Tauri 2 + React 前端：两个功能页 + 设置页 + 四方向主题层 + 新手指引弹窗 |
 | `src-tauri/` | Rust 壳：无边框窗口、文件对话框、sidecar 生命周期 |
 | `src-tauri/runtime/` | 随包分发的独立 CPython（约 45MB，不入 git）。让无 Python 的机器也能一键装引擎；缺失则执行 `engine/tools/fetch_runtime.py` |
+| `src-tauri/icons/source/` | 图标 SVG 母版（应用图标 / 小尺寸加粗版 / favicon）。唯一真源，由 `engine/tools/make_icons.py` 栅格化成 icons/ 全套 |
 | `mcp/` | MCP 客户端配置示例（开发机自用）。分发给用户的那份由应用按本机路径动态生成 |
 | `docs/icon-preview.png` | 图标验收对照图（任务栏尺寸 / 深浅底 / 透明圆角），由 tools 生成 |
 | `prototype/` | 视觉方向原型（4 版可切换），评审用 |
