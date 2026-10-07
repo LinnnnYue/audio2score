@@ -6,12 +6,14 @@
  * 「WorkBuddy 外壳 + iframe」，内容托管在另一台静态服务器上：
  *     <iframe src="https://workbuddy-space-static.codebuddy.work/page/<id>/<rev>/xxx.html">
  *
- * ⚠️ 实测：**外层 URL 的 hash 不会透传给 iframe**（iframe 的 src 永远不带 hash）。
- * 所以「单页面 + `#/`、`#/docs` 站内路由」在分享页里必然失效 ——
- * 打开 `…p/<id>#/docs` 只会落在 iframe 内的首页。
+ * ⚠️ 实测（2026-10-07）：**外层 URL 的 hash 与 query 都不透传给 iframe**
+ * （iframe 的 src 完全由外壳拼定，只有 path 起作用）。所以
+ * `…p/<id>#docs`、`…p/<id>#s7`、`…p/<id>?view=docs` 一律落在 iframe 内的首页。
+ * 站内深链接只在**直接打开静态产物**（`…codebuddy.work/page/…/xxx.html#s7`）时有效。
  *
- * 正解：把首页与文档**拆成两个独立页面**、各自发布、互相绝对链接。
- * 这样每个按钮都有自己可直接到达的目标。
+ * 本站已把首页与文档合并为**同一份单页**（站内 `#docs` 切换视图），官网节点即唯一对外入口；
+ * 原先并存的「说明文档」独立短链节点已于 2026-10-07 下架，避免两条同内容链接。
+ * 经短链打开文档时，走首页顶栏的「文档」入口即可 —— 外壳限制下这是唯一可靠路径。
  *
  * ## 为什么不用 window.open
  * 应用是无边框（decorations:false）的 Tauri 窗口，`window.open` 弹出的
@@ -22,8 +24,13 @@
 /** 官网首页（含「自动指向最新 Release」的下载按钮） */
 export const SITE_URL = 'https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd'
 
-/** 说明文档：九个旋钮 / 症状表 / 参数详解，与软件内提示同源 */
-export const DOCS_URL = 'https://workbuddy.link/p/Q4EtYgaEhSHmEgOUWXS1sQ'
+/**
+ * 说明文档：与官网是同一份单页，`#docs` 即文档视图。
+ *
+ * 直接打开静态产物时该锚点有效；经短链访问时外壳不透传 hash，会落在首页
+ * （首页顶栏有「文档」入口，一点即到）。这是短链体系的能力边界，不是缺陷。
+ */
+export const DOCS_URL = `${SITE_URL}#docs`
 
 /** 源码仓库 */
 export const GITHUB_URL = 'https://github.com/LinnnnYue/audio2score'

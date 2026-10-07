@@ -11,7 +11,7 @@
 ![平台](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-lightgrey)
 ![许可](https://img.shields.io/badge/license-%E4%BB%85%E4%BE%9B%E5%AD%A6%E4%B9%A0%E7%A0%94%E7%A9%B6-orange)
 
-[官网](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd) · [说明文档](https://workbuddy.link/p/Q4EtYgaEhSHmEgOUWXS1sQ) · [下载](https://github.com/LinnnnYue/audio2score/releases/latest)
+[官网](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd) · [说明文档](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd#docs) · [下载](https://github.com/LinnnnYue/audio2score/releases/latest)
 
 </div>
 
@@ -63,7 +63,7 @@
 | **3** | 先看一眼，再动手改 | 确认 **BPM 是真实速度**（不对的话小节线会整体错位）；哪个音符不合适就在谱面上直接改 |
 | **4** | 导出 PDF | <kbd>文件</kbd> → <kbd>导出</kbd> → 格式选 **PDF** |
 
-> 📖 **更细的分步图解**（谱面怎么读、每个按钮在哪、常见报错怎么办）见 **[说明文档 · §07 拿到 MIDI 之后](https://workbuddy.link/p/Q4EtYgaEhSHmEgOUWXS1sQ#s7)**。
+> 📖 **更细的分步图解**（谱面怎么读、每个按钮在哪、常见报错怎么办）见 **[说明文档 · §07 拿到 MIDI 之后](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd#s7)**。
 
 ### 扒出来的文件放在哪？
 
