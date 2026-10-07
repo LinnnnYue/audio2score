@@ -9,12 +9,13 @@
  */
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { AudioLines, BookOpen, Music4, Settings as SettingsIcon, Waves } from 'lucide-react'
+import { BookOpen, Music4, Settings as SettingsIcon, Waves } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { BasicTranscribe } from './pages/BasicTranscribe'
 import { SongTranscribe } from './pages/SongTranscribe'
 import { SettingsPage } from './pages/Settings'
+import { BrandMark } from './components/BrandMark'
 import { EngineSetup } from './components/EngineSetup'
 import { Onboarding } from './components/Onboarding'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
@@ -263,9 +264,7 @@ export default function App() {
         style={{ paddingRight: 12 }}
       >
         <div className="flex items-center gap-2">
-          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-[6px] bg-accent text-accent-contrast">
-            <AudioLines size={13} strokeWidth={2.2} />
-          </span>
+          <BrandMark size={22} className="shrink-0" />
           <span className="text-[13px] font-semibold tracking-[-0.01em] text-ink">扒谱台</span>
           <span className="num hidden text-[10px] text-ink-faint sm:inline">AutoTranscriber</span>
         </div>

@@ -1,0 +1,35 @@
+<!--
+  扒谱助手 · 应用图标小尺寸版（1024×1024 画布，供 16/24/32px 帧使用）
+  ============================================
+  与 icon.svg 同一形状，只做光学尺寸调整：
+    · 图案放大到约占 92%（细版约 80%）—— 小尺寸下多留的边只会白白吃掉像素
+    · 线宽 2.4 → 3.6、符头 2.4 → 3.2 —— 否则 16px 时线只有 0.7px，糊成一团
+
+  Windows 的任务栏/开始菜单常用 24–32px，所以这三档专门走这版；
+  48px 起仍用 icon.svg 的精致版。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1d2637"/>
+      <stop offset="1" stop-color="#0c1018"/>
+    </linearGradient>
+    <linearGradient id="inkGrad" x1="190" y1="100" x2="830" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6fe3ff"/>
+      <stop offset="1" stop-color="#a99cff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="184" fill="url(#bgGrad)"/>
+
+  <!-- 候选 A：加粗线框（小尺寸光学调整） -->
+  <g transform="translate(512 512) scale(29.5) translate(-16 -16)"
+     stroke="url(#inkGrad)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M16 2l11 7v14l-11 7l-11 -7V9z"/>
+    <path d="M13 20V12l8-2v8"/>
+  </g>
+  <g transform="translate(512 512) scale(29.5) translate(-16 -16)">
+    <circle cx="11" cy="20.5" r="3.2" fill="#6fe3ff"/>
+    <circle cx="19" cy="18.5" r="3.2" fill="#a99cff"/>
+  </g>
+</svg>

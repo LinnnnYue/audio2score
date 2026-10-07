@@ -1,0 +1,40 @@
+<!--
+  扒谱助手 · 应用图标母版（1024×1024）
+  ============================================
+  六边形 + 双八分音符；配色与造型承自官网图标（青 #6fe3ff → 紫 #a99cff）。
+  深墨底 + 极淡内描边，让图标在浅色任务栏上有实体轮廓。
+
+  由 engine/tools/make_icons.py 消费，产出 src-tauri/icons/ 全套。
+  同源文件（改一处就要一起看）：
+    · icon-small.svg  —— 16/24/32px 用的加粗版（同一形状，光学尺寸调整）
+    · favicon.svg     —— 前端标签页图标
+    · ../../src/src/components/BrandMark.tsx —— 应用标题栏内的 logo
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1d2637"/>
+      <stop offset="1" stop-color="#0c1018"/>
+    </linearGradient>
+    <linearGradient id="inkGrad" x1="190" y1="100" x2="830" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6fe3ff"/>
+      <stop offset="1" stop-color="#a99cff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 底板：圆角方块 + 极淡内描边 -->
+  <rect width="1024" height="1024" rx="184" fill="url(#bgGrad)"/>
+  <rect x="7" y="7" width="1010" height="1010" rx="178" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="14"/>
+
+  <!-- 六边形 + 双八分音符（与官网同源几何，为大尺寸缩放优化留边） -->
+  <g transform="translate(512 512) scale(27.14) translate(-16 -16)"
+     stroke="url(#inkGrad)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M16 2l11 7v14l-11 7l-11 -7V9z"/>
+    <path d="M13 20V12l8-2v8"/>
+  </g>
+  <!-- 符头（实心，不被描边） -->
+  <g transform="translate(512 512) scale(27.14) translate(-16 -16)">
+    <circle cx="11" cy="20.5" r="2.4" fill="#6fe3ff"/>
+    <circle cx="19" cy="18.5" r="2.4" fill="#a99cff"/>
+  </g>
+</svg>
