@@ -1,7 +1,7 @@
 /**
  * WindowControls.tsx — 无边框窗口的右上角三键
  *
- * 命中区 38×38（Windows 最小舒适值），视觉图标仅 10px，克制。
+ * 命中区 38×38（Windows 最小舒适值），视觉图标 12px（原 10px 偏小、发虚，故上调）。
  * hover 态包在 [@media(hover:hover)_and_(pointer:fine)] 内，触屏不触发幽灵态。
  * 这三个键必须 stopPropagation，否则会被 chrome 的拖动区吃掉点击。
  */
@@ -49,26 +49,26 @@ export function WindowControls() {
   return (
     <div className="flex items-center gap-0.5" style={{ marginRight: -8 }}>
       <WinBtn label="最小化" onClick={guard(() => getCurrentWindow().minimize())}>
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true">
           <path d="M1.5 5h7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
       </WinBtn>
 
       <WinBtn label={maximized ? '还原' : '最大化'} onClick={onToggleMax}>
         {maximized ? (
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true">
             <path d="M3.6 3.2V1.9h5.5v5.5H7.8" fill="none" stroke="currentColor" strokeWidth="1.1" />
             <rect x="1.5" y="3.2" width="5.3" height="5.3" fill="none" stroke="currentColor" strokeWidth="1.1" />
           </svg>
         ) : (
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true">
             <rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.1" />
           </svg>
         )}
       </WinBtn>
 
       <WinBtn label="关闭" danger onClick={guard(() => getCurrentWindow().close())}>
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true">
           <path d="M1.8 1.8l6.4 6.4M8.2 1.8L1.8 8.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
       </WinBtn>

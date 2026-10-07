@@ -322,12 +322,14 @@ export default function App() {
             aria-label="使用说明与官网"
             title="使用说明与官网"
             className={clsx(
-              'flex h-[26px] w-[26px] items-center justify-center rounded-[var(--r-sm)]',
+              'flex h-[34px] w-[34px] items-center justify-center rounded-[var(--r-sm)]',
               'text-ink-faint',
               'transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.94]',
+              '[[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft',
+              '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink',
             )}
           >
-            <BookOpen size={14} strokeWidth={1.9} />
+            <BookOpen size={16} strokeWidth={1.9} />
           </button>
           <button
             type="button"
@@ -336,12 +338,14 @@ export default function App() {
             aria-pressed={view === 'settings'}
             title="设置"
             className={clsx(
-              'flex h-[26px] w-[26px] items-center justify-center rounded-[var(--r-sm)]',
+              'flex h-[34px] w-[34px] items-center justify-center rounded-[var(--r-sm)]',
               'transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.94]',
+              '[[@media(hover:hover)_and_(pointer:fine)]]:hover:bg-accent-soft',
+              '[[@media(hover:hover)_and_(pointer:fine)]]:hover:text-ink',
               view === 'settings' ? 'bg-accent-soft text-accent' : 'text-ink-faint',
             )}
           >
-            <SettingsIcon size={14} strokeWidth={1.9} />
+            <SettingsIcon size={16} strokeWidth={1.9} />
           </button>
           <span className="h-4 w-px bg-line" />
           <WindowControls />

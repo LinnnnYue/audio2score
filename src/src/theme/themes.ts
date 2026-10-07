@@ -27,6 +27,7 @@ export interface ThemeMeta {
  *   accent / accent-hover / accent-contrast / accent-soft / accent-border
  *   success / warning / danger / danger-soft
  *   stage-track（进度条已完成部分）
+ *   glass-top（卡片顶部一条内高光，做「水晶玻璃」的受光感；纸白方向给 0 = 不要高光）
  *   r-sm / r-md / r-lg / shadow-panel / shadow-pop
  *   font-sans / font-mono
  */
@@ -53,6 +54,7 @@ const FROST: ThemeTokens = {
   danger: '#b4443a',
   'danger-soft': 'rgba(180, 68, 58, 0.1)',
   'stage-track': 'rgba(31, 111, 156, 0.16)',
+  'glass-top': 'rgba(255, 255, 255, 0.7)',
   'r-sm': '10px',
   'r-md': '14px',
   'r-lg': '16px',
@@ -83,6 +85,7 @@ const CELLAR: ThemeTokens = {
   danger: '#d1663f',
   'danger-soft': 'rgba(209, 102, 63, 0.12)',
   'stage-track': 'rgba(233, 219, 195, 0.1)',
+  'glass-top': 'rgba(255, 255, 255, 0.055)',
   'r-sm': '8px',
   'r-md': '10px',
   'r-lg': '12px',
@@ -113,6 +116,7 @@ const ABYSS: ThemeTokens = {
   danger: '#e8697d',
   'danger-soft': 'rgba(232, 105, 125, 0.12)',
   'stage-track': 'rgba(63, 208, 201, 0.14)',
+  'glass-top': 'rgba(255, 255, 255, 0.07)',
   'r-sm': '10px',
   'r-md': '14px',
   'r-lg': '16px',
@@ -143,6 +147,7 @@ const PAPER: ThemeTokens = {
   danger: '#a83a2c',
   'danger-soft': 'rgba(168, 58, 44, 0.07)',
   'stage-track': 'rgba(31, 92, 94, 0.12)',
+  'glass-top': 'rgba(255, 255, 255, 0)',
   'r-sm': '8px',
   'r-md': '8px',
   'r-lg': '10px',
