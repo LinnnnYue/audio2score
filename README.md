@@ -11,7 +11,7 @@
 ![平台](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-lightgrey)
 ![许可](https://img.shields.io/badge/license-%E4%BB%85%E4%BE%9B%E5%AD%A6%E4%B9%A0%E7%A0%94%E7%A9%B6-orange)
 
-[官网](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd) · [说明文档](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd#docs) · [下载](https://github.com/LinnnnYue/audio2score/releases/latest)
+[官网](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd) · [说明文档](https://workbuddy.link/p/6gCdf83meMdb9Zoc2dZJkd#docs) · [下载](https://github.com/LinnnnYue/audio2score/releases/latest/download/audio2score-setup.exe)
 
 </div>
 
@@ -31,7 +31,7 @@
 
 ## 快速开始
 
-1. 到 **[Releases](https://github.com/LinnnnYue/audio2score/releases)** 下载最新安装包（形如 `audio2score_x.x.x_x64-setup.exe`）。
+1. 直接下载 **[audio2score-setup.exe](https://github.com/LinnnnYue/audio2score/releases/latest/download/audio2score-setup.exe)**（永远指向最新版），或到 **[Releases](https://github.com/LinnnnYue/audio2score/releases)** 自行挑选版本（版本名资产形如 `audio2score_x.x.x_x64-setup.exe`）。
 2. 安装并首次启动。应用会引导你**联网安装扒谱引擎**（引擎体积大，不随安装包分发）。
 3. 选择安装档位（见 [引擎安装档位](#引擎安装档位)），等待完成。
 4. 拖入音频 → 选模式 → 点「开始」→ 得到 `.mid`。
@@ -138,6 +138,35 @@ npm run tauri:build
 
 > **不要用 `cargo build`** —— 它跳过前端构建，打出的包会白屏。
 > 交付一律走 `npm run tauri:build`。
+
+### 发布（Releases）
+
+发版时**除版本名资产外，必须再上传一份固定名资产** `audio2score-setup.exe`：
+
+```bash
+V=0.1.4
+gh release create "v$V" \
+  "src-tauri/target/release/bundle/nsis/扒谱助手_${V}_x64-setup.exe" \
+  --title "扒谱助手 $V" --notes-file RELEASE_NOTES.md
+
+# 固定名副本：内容与上完全一致，只是改了名字
+cp "src-tauri/target/release/bundle/nsis/扒谱助手_${V}_x64-setup.exe" /tmp/audio2score-setup.exe
+gh release upload "v$V" /tmp/audio2score-setup.exe
+```
+
+官网、README、软件内的下载按钮统一指向：
+
+```
+https://github.com/LinnnnYue/audio2score/releases/latest/download/audio2score-setup.exe
+```
+
+这是 GitHub 的**固定路由**，永远解析到最新一次发布的同名资产，**不经过 API**。
+
+> **为什么不用「JS 查 API 取最新版号」**：GitHub 匿名 API 限流按**出口 IP** 计
+> （60 次/小时）。共享出口 IP 的环境（公司网络 / 代理 / 部分运营商）下会长期 403，
+> 消费者端只剩回退文案。固定名直链不吃这个亏。
+>
+> 代价只有一条：**每次发版多传一份固定名资产**。传完，官网与 README 一处都不用改。
 
 ### 图标
 
