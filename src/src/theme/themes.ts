@@ -28,33 +28,43 @@ export interface ThemeMeta {
  *   success / warning / danger / danger-soft
  *   stage-track（进度条已完成部分）
  *   glass-top（卡片顶部一条内高光，做「水晶玻璃」的受光感；纸白方向给 0 = 不要高光）
+ *   hl / hl-btn（★ 2026-10-07 官网化新增：强调渐变。hl = 文字/色块强调；
+ *               hl-btn = 主按钮底。frost/abyss 走官网「青 → 紫」，
+ *               cellar/paper 走同色系微差以保各自气质）
  *   r-sm / r-md / r-lg / shadow-panel / shadow-pop
  *   font-sans / font-mono
  */
 export type ThemeTokens = Record<string, string>
 
 const FROST: ThemeTokens = {
-  bg: '#eef2f6',
-  'bg-elev': '#e4eaf0',
-  surface: 'rgba(255, 255, 255, 0.72)',
-  'surface-2': 'rgba(255, 255, 255, 0.9)',
-  'surface-3': '#f7fafc',
-  border: 'rgba(24, 58, 84, 0.12)',
-  'border-strong': 'rgba(24, 58, 84, 0.24)',
+  /* ★ 2026-10-07 官网化：底色转为官网浅色 #eef3ff；accent 由深靛 #1f6f9c
+     换成官网「青」#0d8fc0，按钮文字随之转为深色 #08182b
+     （官网 .btn-p 同为「渐变底 + 深字」，白字在浅青渐变上不达标）。 */
+  bg: '#eef3ff',
+  'bg-elev': '#e4ecfa',
+  surface: 'rgba(255, 255, 255, 0.74)',
+  'surface-2': 'rgba(255, 255, 255, 0.92)',
+  'surface-3': '#f6faff',
+  border: 'rgba(30, 70, 150, 0.12)',
+  'border-strong': 'rgba(30, 70, 150, 0.26)',
   text: '#16232e',
   'text-dim': '#4a5f70',
   'text-faint': '#7d92a3',
-  accent: '#1f6f9c',
-  'accent-hover': '#17597d',
-  'accent-contrast': '#ffffff',
-  'accent-soft': 'rgba(31, 111, 156, 0.1)',
-  'accent-border': 'rgba(31, 111, 156, 0.36)',
+  accent: '#0d8fc0',
+  'accent-hover': '#0a739c',
+  'accent-contrast': '#08182b',
+  'accent-soft': 'rgba(13, 143, 192, 0.11)',
+  'accent-border': 'rgba(13, 143, 192, 0.36)',
   success: '#1f7a63',
   warning: '#a4681c',
   danger: '#b4443a',
   'danger-soft': 'rgba(180, 68, 58, 0.1)',
-  'stage-track': 'rgba(31, 111, 156, 0.16)',
-  'glass-top': 'rgba(255, 255, 255, 0.7)',
+  'stage-track': 'rgba(13, 143, 192, 0.16)',
+  'glass-top': 'rgba(255, 255, 255, 0.75)',
+  /* 官网渐变（浅色）：--hl 同义；--hl-btn 用官网浅色专用的更亮一档，
+     否则整块发暗。取自官网 html[data-theme="light"] 的 --hl-btn。 */
+  hl: 'linear-gradient(135deg, #0d8fc0, #6b58d8)',
+  'hl-btn': 'linear-gradient(120deg, #4bccf4, #9c88ff)',
   'r-sm': '10px',
   'r-md': '14px',
   'r-lg': '16px',
@@ -86,6 +96,9 @@ const CELLAR: ThemeTokens = {
   'danger-soft': 'rgba(209, 102, 63, 0.12)',
   'stage-track': 'rgba(233, 219, 195, 0.1)',
   'glass-top': 'rgba(255, 255, 255, 0.055)',
+  /* 本方向保留原气质：渐变只做同色系微差，不引入青紫（青紫是 frost/abyss 的官网色） */
+  hl: 'linear-gradient(135deg, #d9a441, #e8b558)',
+  'hl-btn': 'linear-gradient(120deg, #e8b558, #c8923a)',
   'r-sm': '8px',
   'r-md': '10px',
   'r-lg': '12px',
@@ -96,27 +109,32 @@ const CELLAR: ThemeTokens = {
 }
 
 const ABYSS: ThemeTokens = {
-  bg: '#14182b',
-  'bg-elev': '#191e34',
-  surface: 'rgba(30, 38, 68, 0.6)',
-  'surface-2': 'rgba(38, 48, 84, 0.78)',
-  'surface-3': '#232b4c',
-  border: 'rgba(122, 200, 226, 0.14)',
-  'border-strong': 'rgba(122, 200, 226, 0.28)',
-  text: '#e4ecf6',
-  'text-dim': '#93a4c4',
+  /* ★ 2026-10-07 官网化：底色对齐官网深色 #070b1a；accent 换官网「青」
+     #6fe3ff，按钮文字转深色 #04121c（官网 .btn-p 深色态即 #04121c）。 */
+  bg: '#070b1a',
+  'bg-elev': '#0b1226',
+  surface: 'rgba(22, 32, 62, 0.6)',
+  'surface-2': 'rgba(30, 42, 80, 0.78)',
+  'surface-3': '#131c38',
+  border: 'rgba(150, 190, 255, 0.14)',
+  'border-strong': 'rgba(150, 190, 255, 0.28)',
+  text: '#e9f0ff',
+  'text-dim': '#93a8cc',
   'text-faint': '#63739a',
-  accent: '#3fd0c9',
-  'accent-hover': '#5fe0da',
-  'accent-contrast': '#0d1220',
-  'accent-soft': 'rgba(63, 208, 201, 0.12)',
-  'accent-border': 'rgba(63, 208, 201, 0.38)',
+  accent: '#6fe3ff',
+  'accent-hover': '#8febff',
+  'accent-contrast': '#04121c',
+  'accent-soft': 'rgba(111, 227, 255, 0.12)',
+  'accent-border': 'rgba(111, 227, 255, 0.38)',
   success: '#4fc98a',
   warning: '#e0b04a',
   danger: '#e8697d',
   'danger-soft': 'rgba(232, 105, 125, 0.12)',
-  'stage-track': 'rgba(63, 208, 201, 0.14)',
+  'stage-track': 'rgba(111, 227, 255, 0.14)',
   'glass-top': 'rgba(255, 255, 255, 0.07)',
+  /* 官网渐变（深色）：--hl 与 --hl-btn 同值，即 青 → 紫 对角/横向两支 */
+  hl: 'linear-gradient(135deg, #6fe3ff, #a99cff)',
+  'hl-btn': 'linear-gradient(120deg, #6fe3ff, #a99cff)',
   'r-sm': '10px',
   'r-md': '14px',
   'r-lg': '16px',
@@ -148,6 +166,9 @@ const PAPER: ThemeTokens = {
   'danger-soft': 'rgba(168, 58, 44, 0.07)',
   'stage-track': 'rgba(31, 92, 94, 0.12)',
   'glass-top': 'rgba(255, 255, 255, 0)',
+  /* 本方向保留原气质：同色系深青微渐变，白字仍成立 */
+  hl: 'linear-gradient(135deg, #1f5c5e, #2f7a7c)',
+  'hl-btn': 'linear-gradient(120deg, #256a6c, #1a4f51)',
   'r-sm': '8px',
   'r-md': '8px',
   'r-lg': '10px',
@@ -168,8 +189,8 @@ export const THEME_LIST: ThemeMeta[] = [
   {
     id: 'frost',
     label: '霜蓝玻璃',
-    hint: '雾白玻璃，冰川蓝强调',
-    swatch: ['#eef2f6', '#1f6f9c', '#f2846b'],
+    hint: '官网浅色：雾白底，青紫渐变强调',
+    swatch: ['#eef3ff', '#0d8fc0', '#9c88ff'],
   },
   {
     id: 'cellar',
@@ -180,8 +201,8 @@ export const THEME_LIST: ThemeMeta[] = [
   {
     id: 'abyss',
     label: '深海声谱',
-    hint: '深靛底，青绿频谱',
-    swatch: ['#14182b', '#3fd0c9', '#5b8def'],
+    hint: '官网深色：夜空底，青紫渐变强调',
+    swatch: ['#070b1a', '#6fe3ff', '#a99cff'],
   },
   {
     id: 'paper',
@@ -199,8 +220,14 @@ export const THEME_LIST: ThemeMeta[] = [
  * 完全不生效（表现为「改了默认值却没变化」）。
  * 升版本 = 让旧偏好自然失效，新默认值得以落地；
  * 用户此后主动切的主题照常持久化，不受影响。
+ *
+ * - v1 → v2：初版 4 主题定稿。
+ * - v2 → v3（2026-10-07）：**官网化改色**。frost/abyss 全套 token 变动
+ *   （底色、accent、按钮文字色），且新增 hl / hl-btn 两个 token。
+ *   不升版本的话，已存过 'frost' 的机器读到旧值就直接 applyTheme，
+ *   会拿到「新 token 缺失 + 旧色值」的半吊子状态 —— 按钮渐变不生效。
  */
-const STORAGE_KEY = 'bapu.theme.v2'
+const STORAGE_KEY = 'bapu.theme.v3'
 
 /**
  * 默认主题：霜蓝玻璃（frost）。
